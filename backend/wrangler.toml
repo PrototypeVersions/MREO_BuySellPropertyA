@@ -3,13 +3,32 @@ main = "worker.js"
 compatibility_date = "2026-09-01"
 
 [vars]
-SITE_URL = "https://prototypeversions.github.io/MREO_BuySell"
+SITE_URL = "https://prototypeversions.github.io/MREO_BuySellPropertyA"
 ALLOW_LIVE_PAYMENTS = "false"
+SIGNWELL_TEST_MODE = "true"
 
 [[durable_objects.bindings]]
 name = "EXCHANGE"
 class_name = "Exchange"
 
+[[durable_objects.bindings]]
+name = "TRANSACTION_ROOMS"
+class_name = "TransactionRoom"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mreo-dev"
+database_id = "REPLACE_WITH_MREO_DEV_DATABASE_ID"
+migrations_dir = "../migrations"
+
+[[r2_buckets]]
+binding = "DOCUMENTS"
+bucket_name = "mreo-documents-dev"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Exchange"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["TransactionRoom"]

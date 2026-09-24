@@ -17,7 +17,14 @@
     return $("view-seller")?.getAttribute("aria-pressed") === "true" ? "seller" : "buyer";
   }
 
-  function buildWorkspaceUrl(auction, view, amount, account) {
+  async function buildWorkspaceUrl(auction, view, amount, account) {
+    if (globalThis.MreoIdentity?.connected()) {
+      await MreoIdentity.init();
+      if (!await MreoIdentity.currentUser()) return {url:"#", requiresSignIn:true};
+      const {handoffToken} = await S.handoff(auction.id, view);
+      const transaction = await MreoIdentity.request("/api/v1/transactions", {method:"POST", body:JSON.stringify({handoffToken})});
+      return {url:`coordination.html?transaction=${encodeURIComponent(transaction.id)}`, requiresSignIn:false};
+    }
     const query = new URLSearchParams();
     query.set("type", auction.kind === "portfolio" ? "portfolio" : "property");
     query.set("auction", auction.id);
@@ -30,6 +37,8 @@
     if (mediaKey) query.set("mediaKey", mediaKey);
     if (/^(https?:\/\/|assets\/)/i.test(image)) query.set("image", image);
     query.set("role", view);
+    query.set("demo", "1");
+    query.set("perspective", view);
     query.set("stage", auction.saleCompleted ? "complete" : "won");
     if (account?.name) { query.set("accountName", account.name); query.set("accountRole", view); }
     if (account?.email) query.set("accountEmail", account.email);
@@ -40,7 +49,7 @@
     if (phone) query.set("accountPhone", phone);
     if (purchaseMethod) query.set("purchaseMethod", purchaseMethod);
     if (purchaseTimeline) query.set("purchaseTimeline", purchaseTimeline);
-    return `coordination.html?${query.toString()}`;
+    return {url:`coordination.html?${query.toString()}`, requiresSignIn:false};
   }
 
   function hideHandoff(container) {
@@ -79,7 +88,7 @@
 
       const top = C.highest(auction);
       const amount = cashNumber(top?.amount);
-      const link = buildWorkspaceUrl(auction, view, amount, result.account);
+      const destination = await buildWorkspaceUrl(auction, view, amount, result.account);
       const seller = view === "seller";
       const complete = !!auction.saleCompleted;
 
@@ -93,13 +102,14 @@
         : (complete
           ? "The property is now in your MREO workspace for Title / Settlement, Contractors, Realtors, and Rent / Manage."
           : "Seller acceptance and closing are still required. Open the transaction workspace to begin title / settlement and see exactly what needs your attention next.");
-      const label = seller
+      const label = destination.requiresSignIn ? "Sign in to continue →" : seller
         ? (complete ? "Open seller property workspace →" : "Continue seller closing →")
         : (complete ? "Open property workspace →" : "Begin closing & coordination →");
 
-      const html = `<section class="form-panel" aria-label="Continue to property workspace"><p class="section-label">Next stage · MREO transaction workspace</p><h2>${heading}</h2><p>${copy}</p><div class="form-actions"><a class="primary-button button-blue" href="${link}">${label}</a></div></section>`;
+      const html = `<section class="form-panel" aria-label="Continue to property workspace"><p class="section-label">Next stage · MREO transaction workspace</p><h2>${heading}</h2><p>${copy}</p><div class="form-actions"><a class="primary-button button-blue" ${destination.requiresSignIn?'data-handoff-sign-in="true"':""} href="${destination.url}">${label}</a></div></section>`;
       if (container.innerHTML !== html) container.innerHTML = html;
       if (container.hidden) container.hidden = false;
+      container.querySelector("[data-handoff-sign-in]")?.addEventListener("click", event => { event.preventDefault(); MreoIdentity.openSignIn(location.href); });
     } catch {
       if (token === refreshToken) hideHandoff(container);
     }

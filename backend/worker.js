@@ -1,4 +1,7 @@
 import "../auction-core.js";
+import {apiFetch} from "./api.js";
+import {TransactionRoom} from "./rooms.js";
+import {createHandoffToken} from "./handoff.js";
 
 "use strict";
 const C=globalThis.MreoCore;
@@ -104,6 +107,13 @@ class Exchange{
  const paid=await this.credit(await stripe(this.env,"/checkout/sessions/"+encodeURIComponent(a.checkoutSession)));return json(this.publicAccount(paid));
  }
  await this.settle();
+ if((()=>{const m=path.match(/^\/auctions\/([a-zA-Z0-9-]+)\/handoff$/);return m&&method==="POST"?m:null;})()){
+ const auctionId=path.split("/")[2],auction=await this.ctx.storage.get("auction:"+auctionId);if(!auction)throw new HttpError("Auction not found.",404);
+ const account=await this.account(request),isSeller=account.id===auction.sellerId,isWinner=account.id===auction.winnerId;
+ if(auction.status!=="closed"||(!isSeller&&!isWinner))throw new HttpError("Only the listing seller or winning buyer can open this transaction.",403);
+ const highest=C.highest(auction);const token=await createHandoffToken(this.env,{auctionId:auction.id,role:isSeller?"seller":"buyer",legacyAccountId:account.id,title:auction.title,kind:auction.kind||"property",amount:highest?.amount||0,property:{portfolioCount:auction.portfolioCount||auction.portfolio?.length||0}});
+ return json({handoffToken:token});
+ }
  if(path==="/activate"&&method==="POST"){
  const a=await this.account(request);if(a.creditCents<100)throw new HttpError("A verified $1 participation credit is required.",403);
  if(a.role==="buyer"){const auctionId=a.submission.auctionId;return json({auctionId:auctionId&&await this.ctx.storage.get("auction:"+auctionId)?auctionId:null});}
@@ -140,12 +150,15 @@ async function workerFetch(request,env){
  try{
  const origin=request.headers.get("Origin"),allowed=new URL(siteURL(env)).origin,url=new URL(request.url);
  if(origin&&origin!==allowed)return json({error:"Origin not allowed."},403);
- if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":allowed,"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"3600","Vary":"Origin"}});
- if(request.method==="POST"&&url.pathname!=="/webhook"&&origin!==allowed)return json({error:"An approved site origin is required."},403);
- const id=env.EXCHANGE.idFromName("mreo-exchange-v1"),response=await env.EXCHANGE.get(id).fetch(request),headers=new Headers(response.headers);headers.set("Access-Control-Allow-Origin",allowed);headers.set("Vary","Origin");headers.set("X-Content-Type-Options","nosniff");
+ if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":allowed,"Access-Control-Allow-Methods":"GET, POST, PATCH, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"3600","Vary":"Origin"}});
+ const externalWebhook=url.pathname==="/webhook"||url.pathname==="/webhooks/signwell";
+ if(["POST","PATCH","DELETE"].includes(request.method)&&!externalWebhook&&origin!==allowed)return json({error:"An approved site origin is required."},403);
+ const useApi=url.pathname.startsWith("/api/v1/")||url.pathname==="/webhooks/signwell";
+ const response=useApi?await apiFetch(request,env):await env.EXCHANGE.get(env.EXCHANGE.idFromName("mreo-exchange-v1")).fetch(request),headers=new Headers(response.headers);headers.set("Access-Control-Allow-Origin",allowed);headers.set("Vary","Origin");headers.set("X-Content-Type-Options","nosniff");headers.set("Referrer-Policy","no-referrer");
+ if(response.webSocket)return response;
  return new Response(response.body,{status:response.status,headers});
  }catch(e){return json({error:e.status?e.message:"The service is not configured."},e.status||503);}
 }
 
-export { Exchange, verifyStripeSignature, validSubmission };
+export { Exchange, TransactionRoom, verifyStripeSignature, validSubmission };
 export default { fetch: workerFetch };

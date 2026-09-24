@@ -8,7 +8,7 @@ function context(){
  return {data,storage:{get:async k=>data.has(k)?structuredClone(data.get(k)):undefined,put:async(k,v)=>data.set(k,structuredClone(v)),list:async({prefix=""}={})=>new Map([...data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)])),setAlarm:async v=>{alarm=v;},deleteAlarm:async()=>{alarm=null;}},
  blockConcurrencyWhile(fn){const result=queue.then(fn);queue=result.catch(()=>{});return result;}};
 }
-const env={STRIPE_SECRET_KEY:"sk_test_example",STRIPE_WEBHOOK_SECRET:"whsec_example",SITE_URL:"https://example.com/MREO_BuySell"};
+const env={STRIPE_SECRET_KEY:"sk_test_example",STRIPE_WEBHOOK_SECRET:"whsec_example",HANDOFF_SIGNING_SECRET:"handoff-test-secret-at-least-32-bytes",SITE_URL:"https://example.com/MREO_BuySell"};
 const request=(path,method="GET",body,token)=>new Request("https://api.example.com"+path,{method,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},body:body?JSON.stringify(body):undefined});
 async function register(exchange,role){const r=await exchange.fetch(request("/register","POST",{role,details:{name:role,email:role+"@example.com"},submission:{title:"Test listing",minimum:250000,days:1,kind:"property"}}));assert.equal(r.status,201);return r.json();}
 test("only correct current webhook signatures are accepted",async()=>{
@@ -80,4 +80,15 @@ test("connected buyers cannot discover competing amounts through auctions or not
  const notices=await get("/notifications",loser.token);assert.equal("highest" in notices.notifications[0],false);assert.equal(notices.notifications[0].outcome,"lost");
  assert.equal((await get("/notifications",winner.token)).notifications[0].outcome,"won");
  assert.equal((await get("/notifications",seller.token)).notifications[0].highest,500000);
+});
+test("only the seller and winning buyer receive signed transaction handoffs",async()=>{
+ const ctx=context(),ex=new Exchange(ctx,env),seller=await register(ex,"seller"),winner=await register(ex,"buyer"),loser=await register(ex,"buyer");
+ for(const user of [winner,loser])ctx.data.get("account:"+user.id).creditCents=100;
+ const auction=C.createAuction({id:"handoff-auction",sellerId:seller.id,title:"Verified handoff",minimum:250000});ctx.data.set("auction:"+auction.id,auction);
+ await ex.fetch(request(`/auctions/${auction.id}/bids`,"POST",{amount:300000},winner.token));
+ await ex.fetch(request(`/auctions/${auction.id}/bids`,"POST",{amount:260000},loser.token));
+ ctx.data.get("auction:"+auction.id).endsAt=Date.now()-1;await ex.alarm();
+ const winnerReply=await ex.fetch(request(`/auctions/${auction.id}/handoff`,"POST",{},winner.token));assert.equal(winnerReply.status,200);assert.match((await winnerReply.json()).handoffToken,/\./);
+ assert.equal((await ex.fetch(request(`/auctions/${auction.id}/handoff`,"POST",{},seller.token))).status,200);
+ assert.equal((await ex.fetch(request(`/auctions/${auction.id}/handoff`,"POST",{},loser.token))).status,403);
 });

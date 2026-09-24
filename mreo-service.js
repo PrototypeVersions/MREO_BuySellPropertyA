@@ -105,6 +105,13 @@ async function register(role,details,submission){
  if(!["buyer","seller"].includes(role))throw Error("Choose a buyer or seller account.");
  setRole(role);
  if(!demo){
+ if(globalThis.MreoIdentity?.connected()){
+  await MreoIdentity.init();
+  if(!await MreoIdentity.currentUser()){
+   await MreoIdentity.openSignIn(location.href);
+   throw Error("Create or sign in to your MREO account to continue.");
+  }
+ }
  const existing=session(role);
  if(existing){const result=await api("/submission",{method:"POST",body:JSON.stringify({details,submission})},role);keep(role,{...existing,...result});return result;}
  const result=await api("/register",{method:"POST",body:JSON.stringify({role,details,submission})},role);keep(role,result);return result;
@@ -162,5 +169,6 @@ async function bid(id,amount,actor){
 async function finish(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");C.seedDemo(a,a.endsAt-1);const now=Date.now();for(const b of a.bids)b.at=Math.min(b.at,now);a.endsAt=now;C.closeAuction(a);write(s);}
 async function restart(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);write(s);}
 async function completeSale(id){if(!demo)throw Error("Only test closing can be simulated here.");const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);}
-globalThis.MreoService={demo,key,init,register,me,checkout,confirm,activate,list,auction,bid,finish,restart,completeSale,session,currentRole,setRole,clear,saveMedia,getMedia};
+async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}
+globalThis.MreoService={demo,key,init,register,me,checkout,confirm,activate,list,auction,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
 })();

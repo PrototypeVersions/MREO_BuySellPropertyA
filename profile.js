@@ -1,0 +1,15 @@
+(() => {"use strict";
+ const $=id=>document.getElementById(id),status=$("profile-status"),app=$("profile-app"),list=$("transaction-list");let transactions=[],me=null,section="active";
+ const esc=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+ const showStatus=html=>{status.innerHTML=html;status.hidden=false;app.hidden=true;};
+ function visible(){if(section==="past")return transactions.filter(t=>["complete","cancelled"].includes(t.status));if(section==="active")return transactions.filter(t=>!["complete","cancelled"].includes(t.status));return transactions;}
+ function render(){const rows=visible();$("profile-section-title").textContent=document.querySelector(`[data-section="${section}"]`)?.textContent||"Transactions";list.innerHTML=rows.length?rows.map(t=>`<a class="transaction-row" href="coordination.html?transaction=${encodeURIComponent(t.id)}"><div><h3>${esc(t.title)}</h3><p>${esc(t.viewer_role||"participant")} · ${esc(t.kind)} · Updated ${new Date(t.updated_at).toLocaleDateString()}</p></div><div class="transaction-meta"><span class="status-chip">${esc(t.status)}</span></div></a>`).join(""):`<div class="empty-card"><h3>Nothing here yet</h3><p>Your MREO records will appear here as you participate in transactions.</p></div>`;}
+ async function start(){
+  if(!MreoIdentity.connected()){showStatus(`<h3>Connected accounts are ready for deployment</h3><p>The public demonstration remains available without an account. Once the Cloudflare Worker is deployed, this page becomes your persistent MREO account.</p><a class="primary-button button-blue" href="experience.html">Explore MREO</a>`);return;}
+  try{await MreoIdentity.init();const signed=await MreoIdentity.mountUserButton($("account-user"));if(!signed){showStatus(`<h3>Sign in to My MREO</h3><p>Create one account for every transaction in which you buy, sell, or provide services.</p><button class="primary-button button-blue" id="profile-sign-in">Sign in or create account</button>`);$("profile-sign-in").onclick=()=>MreoIdentity.openSignIn();return;}
+   [me,{transactions}]=await Promise.all([MreoIdentity.request("/api/v1/me"),MreoIdentity.request("/api/v1/transactions")]);
+   $("profile-greeting").textContent=`Welcome${me.displayName?`, ${me.displayName}`:""}. Your access is determined separately for each transaction.`;$("summary-active").textContent=transactions.filter(t=>!["complete","cancelled"].includes(t.status)).length;$("summary-complete").textContent=transactions.filter(t=>t.status==="complete").length;$("summary-roles").textContent=new Set(transactions.map(t=>t.viewer_role)).size;status.hidden=true;app.hidden=false;render();
+  }catch(e){showStatus(`<h3>My MREO could not load</h3><p>${esc(e.message)}</p>`);}
+ }
+ document.querySelectorAll("[data-section]").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll("[data-section]").forEach(item=>item.setAttribute("aria-selected","false"));button.setAttribute("aria-selected","true");section=button.dataset.section;render();}));start();
+})();

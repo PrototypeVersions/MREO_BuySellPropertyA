@@ -34,11 +34,60 @@ The frontend is ready to call the included Cloudflare Worker and Durable Object 
 
 A verified $1 payment creates an internal participation credit and saves the Stripe customer/payment-method relationship for future payments the participant approves. This is not a withdrawable or transferable wallet. The backend checks the amount, currency, payment status, session-to-account binding, and Stripe live/test mode. Webhook signatures are checked and credits are idempotent. Refunded or disputed participation payments revoke future auction access. Historic bids are retained for review. The $1,000 closing fee is displayed but is not automatically charged by this implementation; collection belongs in a verified closing workflow.
 
-The connected service uses server time and serialized auction updates, accepts blind bids without a price increment, rejects late bids, restricts the full bid list to the listing seller, stores results, and closes auctions with a Durable Object alarm even when no page is open. Participant credentials are bearer sessions saved in the current browser tab; account recovery and cross-device login are not implemented. Keep the registration tab for later account access. Connected auctions and spreadsheets persist on the server. This integration has automated mocked payment verification tests; deployment and live Stripe checkout require the account setup above.
+The connected auction service uses server time and serialized updates, accepts blind bids without a price increment, rejects late bids, restricts the full bid list to the listing seller, stores results, and closes auctions with a Durable Object alarm even when no page is open. Its payment/auction access token remains a short-lived browser-tab credential, while the permanent transaction workspace uses Clerk identity for cross-device sign-in and account recovery. Connected auctions and spreadsheets persist on the server. This integration has automated mocked payment verification tests; deployment and live Stripe checkout require the account setup above.
+
+## Cloud-backed transaction platform
+
+The repository now also contains the permanent MREO transaction layer. It is deliberately separate from the existing auction `Exchange` Durable Object so the tested auction rules remain stable.
+
+- `profile.html` is **My MREO**: one authenticated identity can be a buyer in one transaction and a seller in another.
+- `agent.html` is the restricted MREO operations console.
+- `coordination.html?transaction=tx_...` is the authenticated transaction workspace.
+- Buyer↔Agent, Seller↔Agent, and Provider↔Agent are separate server-selected threads. The browser never selects an arbitrary recipient.
+- D1 stores users, participants, messages, tasks, document metadata, service requests, and immutable audit events.
+- R2 stores uploaded files and executed PDFs. Buckets remain private; downloads pass through an authorized Worker route.
+- A transaction Durable Object broadcasts real-time changes after an authenticated user receives a 60-second signed room ticket.
+- SignWell integration defaults to test mode. Its webhook is treated as an untrusted notification: MREO pulls the authoritative document record from SignWell before changing local state, then retrieves and stores the completed PDF.
+- An auction can become a permanent transaction only through a five-minute signed handoff issued to the actual listing seller or winning buyer.
+
+The public `experience.html` demonstration requires no account. A visitor chooses Buyer, Seller, MREO Agent, or Service Partner once; fictional counterparties advance automatically. The old perspective switcher remains available only in direct/internal demonstration and browser-test flows.
+
+### D1 migration and Worker deployment
+
+1. In `backend/wrangler.toml`, replace `REPLACE_WITH_MREO_DEV_DATABASE_ID` with the ID of the existing `mreo-dev` D1 database.
+2. From `backend/`, authenticate and apply the schema:
+
+   ```sh
+   npx wrangler login
+   npx wrangler d1 migrations apply mreo-dev --remote
+   ```
+
+3. Add these Worker secrets. Use different random values for the room and handoff secrets.
+
+   ```sh
+   npx wrangler secret put CLERK_SECRET_KEY
+   npx wrangler secret put SIGNWELL_API_KEY
+   npx wrangler secret put SIGNWELL_WEBHOOK_TOKEN
+   npx wrangler secret put ROOM_SIGNING_SECRET
+   npx wrangler secret put HANDOFF_SIGNING_SECRET
+   npx wrangler secret put MREO_AGENT_EMAILS
+   ```
+
+4. Add the Clerk publishable key as `CLERK_PUBLISHABLE_KEY`. It is safe for frontend use, but keeping deployment configuration together is convenient:
+
+   ```sh
+   npx wrangler secret put CLERK_PUBLISHABLE_KEY
+   ```
+
+5. Deploy, then set `mreo-config.js` to `mode: "connected"` and its `apiBase` to the Worker HTTPS origin.
+6. Register the SignWell callback as `https://YOUR-WORKER.workers.dev/webhooks/signwell?token=YOUR_RANDOM_WEBHOOK_TOKEN`. Do not put the SignWell API key in the URL or repository.
+7. Keep `SIGNWELL_TEST_MODE = "true"` until the complete test workflow has been verified. Test-mode documents are not legally binding. Switch it deliberately only when production signing is approved.
+
+Do not commit `.dev.vars`, Clerk secret keys, SignWell keys, Stripe keys, room/handoff secrets, or webhook tokens.
 
 ## Validation
 
-- `npm test`: auction rules, fees, deadline handling, reserve outcomes, CSV validation, sample portfolio arithmetic, webhook signatures, payment binding/idempotency, authorization and concurrent bids.
+- `npm test`: auction rules, fees, deadline handling, reserve outcomes, CSV validation, sample portfolio arithmetic, webhook signatures, payment binding/idempotency, authorization, signed auction handoffs, transaction isolation, append-only message corrections, and concurrent bids.
 - `npm install`, `npx playwright install chromium`, `npm run test:browser`: actual browser flows at desktop and mobile sizes, including the supplied Excel workbook upload.
 - GitHub Actions runs these checks on pushes and pull requests.
 
