@@ -40,6 +40,13 @@ test("authentication and payment gate protect auctions and seller data",async()=
  r=await ex.fetch(request("/auctions/"+auctionId+"/bids","POST",{amount:260000},"forged.token"));assert.equal(r.status,401);
  r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal((await r.json()).auctionId,auctionId);
 });
+test("missing Stripe grants an explicit test credit while live payments are disabled",async()=>{
+ const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),seller=await register(ex,"seller");
+ const config=await (await ex.fetch(request("/config"))).json();assert.equal(config.participationBypass,true);assert.equal(config.stripeConfigured,false);
+ let r=await ex.fetch(request("/checkout","POST",{testBypass:true},seller.token));assert.equal(r.status,200);assert.equal((await r.json()).testBypass,true);assert.equal(ctx.data.get("account:"+seller.id).creditCents,100);
+ assert.equal(ctx.data.get("ledger:test-bypass:"+seller.id).amountCents,0);
+ r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,201);
+});
 test("concurrent equal blind bids are both saved and expired auctions reject late bids",async()=>{
  const ctx=context(),ex=new Exchange(ctx,env),buyer1=await register(ex,"buyer"),buyer2=await register(ex,"buyer");
  for(const user of [buyer1,buyer2]){const a=ctx.data.get("account:"+user.id);a.creditCents=100;ctx.data.set("account:"+user.id,a);}
