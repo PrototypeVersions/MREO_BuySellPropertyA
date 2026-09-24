@@ -163,7 +163,11 @@ async function payment(){
  button.addEventListener("click",()=>busy(button,async()=>{try{
  const account=await ensureParticipation();if(!account)return;
  const active=await S.activate(role);
- location.href=active.auctionId?"auction.html?id="+encodeURIComponent(active.auctionId)+"&view="+role:"auction.html?view="+role+"&select=1"+(account.submission?.title?"&address="+encodeURIComponent(account.submission.title):"");
+ let transaction=null;
+ if(active.handoffToken&&globalThis.MreoIdentity?.connected())transaction=await MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({handoffToken:active.handoffToken})});
+ if(active.auctionId){const q=new URLSearchParams({id:active.auctionId,view:role});if(transaction?.id)q.set("transaction",transaction.id);location.href="auction.html?"+q.toString();}
+ else if(transaction?.id)location.href="coordination.html?transaction="+encodeURIComponent(transaction.id);
+ else location.href="auction.html?view="+role+"&select=1"+(account.submission?.title?"&address="+encodeURIComponent(account.submission.title):"");
  }catch(e){message("payment-message",e.message,true);}}));
  if(coordinate)coordinate.addEventListener("click",async event=>{
   event.preventDefault();
