@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Portfolio of connected residential properties</title>
+  <desc id="desc">A layered editorial illustration of several modern houses and residential buildings in a warm architectural collage.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f2e8"/>
+      <stop offset="1" stop-color="#eee6d8"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bcd2dd"/>
+      <stop offset="1" stop-color="#6e8792"/>
+    </linearGradient>
+    <linearGradient id="warmGlass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5d49d"/>
+      <stop offset="1" stop-color="#c89555"/>
+    </linearGradient>
+    <linearGradient id="lawn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#769060"/>
+      <stop offset="1" stop-color="#465e3d"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#312d28" flood-opacity=".18"/>
+    </filter>
+    <filter id="smallShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#312d28" flood-opacity=".14"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="720" fill="url(#bg)"/>
+  <circle cx="934" cy="154" r="128" fill="#df4334"/>
+  <rect x="108" y="436" width="280" height="160" rx="2" fill="#2b4fa7"/>
+  <circle cx="205" cy="188" r="94" fill="#efe2ce"/>
+  <path d="M72 590 C285 548 485 563 650 603 C832 646 1005 638 1140 592 L1140 720 L72 720 Z" fill="#ded5c6" opacity=".72"/>
+
+  <!-- rear apartment residence -->
+  <g transform="translate(480 110)" filter="url(#smallShadow)">
+    <polygon points="42,88 214,26 351,91 181,151" fill="#d7c8b2"/>
+    <polygon points="42,88 181,151 181,430 42,372" fill="#b3a28e"/>
+    <polygon points="181,151 351,91 351,370 181,430" fill="#e7ddd0"/>
+    <g fill="url(#glass)">
+      <rect x="205" y="172" width="46" height="68"/><rect x="274" y="148" width="46" height="68"/>
+      <rect x="205" y="269" width="46" height="68"/><rect x="274" y="245" width="46" height="68"/>
+    </g>
+    <g fill="#817565">
+      <rect x="75" y="151" width="36" height="60"/><rect x="127" y="173" width="36" height="60"/>
+      <rect x="75" y="250" width="36" height="60"/><rect x="127" y="272" width="36" height="60"/>
+    </g>
+    <rect x="238" y="334" width="61" height="66" fill="#a06f4e"/>
+  </g>
+
+  <!-- left contemporary house -->
+  <g transform="translate(95 285)" filter="url(#shadow)">
+    <polygon points="0,124 153,26 307,124 153,185" fill="#252525"/>
+    <polygon points="27,120 153,170 153,337 27,292" fill="#3b3937"/>
+    <polygon points="153,170 281,121 281,288 153,337" fill="#1d1d1d"/>
+    <polygon points="153,170 281,121 281,152 153,201" fill="#d8cab5"/>
+    <rect x="175" y="199" width="80" height="54" fill="url(#warmGlass)"/>
+    <rect x="175" y="266" width="80" height="43" fill="url(#warmGlass)"/>
+    <rect x="64" y="167" width="54" height="69" fill="#cbbba5"/>
+    <rect x="64" y="247" width="54" height="55" fill="#cbbba5"/>
+    <rect x="134" y="250" width="31" height="82" fill="#a46f4b"/>
+    <polygon points="-22,293 153,337 307,289 334,320 155,376 -32,329" fill="url(#lawn)"/>
+  </g>
+
+  <!-- center white modern house -->
+  <g transform="translate(347 280)" filter="url(#shadow)">
+    <polygon points="0,128 168,44 335,127 167,202" fill="#f0eee8"/>
+    <polygon points="26,124 167,188 167,355 26,303" fill="#d6d2ca"/>
+    <polygon points="167,188 307,124 307,291 167,355" fill="#f5f1e9"/>
+    <polygon points="73,93 169,45 261,92 168,136" fill="#353535"/>
+    <rect x="187" y="202" width="89" height="66" fill="url(#glass)"/>
+    <rect x="187" y="280" width="89" height="48" fill="url(#glass)"/>
+    <rect x="62" y="173" width="52" height="67" fill="#f7f4ed"/>
+    <rect x="62" y="252" width="52" height="58" fill="#f7f4ed"/>
+    <rect x="140" y="267" width="39" height="82" fill="#9a704f"/>
+    <polygon points="-8,303 167,355 323,294 350,322 170,394 -26,334" fill="#8f9f74"/>
+  </g>
+
+  <!-- right dark lake house -->
+  <g transform="translate(755 276)" filter="url(#shadow)">
+    <polygon points="3,116 156,30 314,116 156,180" fill="#222423"/>
+    <polygon points="26,116 156,168 156,337 26,294" fill="#303431"/>
+    <polygon points="156,168 289,115 289,286 156,337" fill="#252827"/>
+    <rect x="179" y="191" width="83" height="65" fill="url(#warmGlass)"/>
+    <rect x="179" y="268" width="83" height="47" fill="url(#warmGlass)"/>
+    <rect x="61" y="163" width="58" height="65" fill="#d1b27a"/>
+    <rect x="61" y="241" width="58" height="59" fill="#d1b27a"/>
+    <rect x="136" y="258" width="35" height="75" fill="#a26943"/>
+    <polygon points="0,294 156,337 306,286 334,316 159,374 -21,329" fill="#4f6d5c"/>
+  </g>
+
+  <!-- foreground small craftsman -->
+  <g transform="translate(625 405)" filter="url(#shadow)">
+    <polygon points="4,92 135,18 271,91 136,145" fill="#31597f"/>
+    <polygon points="24,91 136,135 136,268 24,230" fill="#c8b89e"/>
+    <polygon points="136,135 250,90 250,221 136,268" fill="#e9dfd0"/>
+    <rect x="155" y="151" width="70" height="48" fill="url(#warmGlass)"/>
+    <rect x="65" y="134" width="45" height="52" fill="#f5eee1"/>
+    <rect x="117" y="194" width="34" height="70" fill="#9f6a47"/>
+    <polygon points="4,230 136,268 263,220 282,245 138,297 -12,256" fill="#71855d"/>
+  </g>
+
+  <!-- foreground landscaping -->
+  <g filter="url(#smallShadow)">
+    <ellipse cx="172" cy="610" rx="78" ry="23" fill="#c6baaa"/>
+    <ellipse cx="458" cy="638" rx="110" ry="28" fill="#c6baaa"/>
+    <ellipse cx="825" cy="624" rx="122" ry="30" fill="#c6baaa"/>
+    <ellipse cx="1040" cy="592" rx="72" ry="22" fill="#c6baaa"/>
+  </g>
+  <g fill="#4f7047">
+    <circle cx="111" cy="548" r="34"/><circle cx="296" cy="569" r="28"/><circle cx="580" cy="577" r="31"/>
+    <circle cx="720" cy="555" r="25"/><circle cx="1071" cy="532" r="35"/>
+  </g>
+  <g fill="#725a43">
+    <rect x="105" y="548" width="12" height="45"/><rect x="290" y="569" width="11" height="36"/>
+    <rect x="574" y="577" width="12" height="42"/><rect x="714" y="555" width="11" height="38"/>
+    <rect x="1065" y="532" width="12" height="48"/>
+  </g>
+</svg>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Review an available MREO property, prepare buyer interest, or coordinate property services.">
+  <title>Property Details | MREO</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="marketplace.css?v=20260914-blind-auction">
+  <link rel="stylesheet" href="coordination.css?v=20260916">
+</head>
+<body class="property-detail-page">
+  <header class="site-header"><a class="brand" href="index.html" aria-label="MREO home"><span class="brand-mark" aria-hidden="true"><span class="brand-circle"></span><span class="brand-square"></span></span><span class="brand-name">MREO</span></a><nav class="market-nav" aria-label="Main navigation"><a href="buyer.html">Buy</a><a href="seller.html">Sell</a><a href="portfolios.html">Portfolios</a><a href="coordination.html?role=provider">Coordinate</a><a href="auction.html">Auctions</a></nav></header>
+  <div class="protocol-strip" data-mode-label></div>
+  <main class="page-shell property-detail-shell">
+    <a class="back-link" href="properties.html"><span aria-hidden="true">←</span> Available Properties</a>
+    <section class="property-detail-summary" aria-labelledby="property-detail-address">
+      <div>
+        <p class="section-label" id="property-detail-location">Available property</p>
+        <h1 id="property-detail-address">Property details</h1>
+        <p class="detail-price" id="property-detail-price">—</p>
+      </div>
+      <p class="property-detail-description" id="property-detail-description">Review this property, then prepare interest or coordinate services around it.</p>
+    </section>
+
+    <div class="single-property-media"><img id="property-detail-image" alt="Property image"></div>
+
+    <div class="detail-facts" aria-label="Property facts">
+      <div><span>Size</span><strong id="property-detail-size">NA</strong></div>
+      <div><span>Beds / Baths</span><strong id="property-detail-beds">NA</strong></div>
+      <div><span>Condition / Type</span><strong id="property-detail-condition">NA</strong></div>
+    </div>
+
+    <section class="seller-media-section" id="seller-media-section" aria-labelledby="seller-media-heading" hidden>
+      <p class="section-label">Property media</p>
+      <h2 id="seller-media-heading">Additional images</h2>
+      <div class="seller-media-grid" id="seller-media-gallery"></div>
+    </section>
+
+    <section class="seller-media-section" id="property-videos-section" aria-labelledby="property-videos-heading" hidden>
+      <p class="section-label">Property media</p>
+      <h2 id="property-videos-heading">Property videos</h2>
+      <div class="seller-media-grid" id="property-video-gallery"></div>
+    </section>
+
+    <section class="property-next-actions" aria-labelledby="property-next-heading">
+      <p class="section-label">Buyer pathway</p>
+      <h2 id="property-next-heading">Prepare buyer interest</h2>
+      <p>Continue with your buyer information and proposed offer. Coordination becomes available after your information is connected at the participation step.</p>
+      <div class="form-actions">
+        <a class="primary-button button-blue" id="property-prepare-interest" href="buyer.html">Prepare Interest <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer"><p>MREO coordinates property workflows and introductions. Provider services are performed by independent professionals and firms as applicable.</p><p>&copy; <span id="current-year">2026</span> MREO</p></footer>
+  <script src="mreo-config.js"></script><script src="auction-core.js?v=20260914-blind-auction"></script><script src="mreo-service.js?v=20260914-blind-auction"></script><script src="app.js"></script><script src="mreo-ui.js?v=20260919-primary-media-v2"></script><script src="property-flow.js?v=20260919-buyer-path-v3"></script>
+</body>
+</html>

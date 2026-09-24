@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A shared MREO property workspace for buyers, sellers, and participating service partners.">
+  <title>Property Coordination Workspace | MREO</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="marketplace.css?v=20260917-coordination-workspace">
+  <link rel="stylesheet" href="coordination.css?v=20260917-workspace-v4">
+  <link rel="stylesheet" href="coordination-workspace-v5.css?v=20260919-portfolio-collage-v20">
+</head>
+<body class="coordination-page">
+  <header class="site-header"><a class="brand" href="index.html" aria-label="MREO home"><span class="brand-mark" aria-hidden="true"><span class="brand-circle"></span><span class="brand-square"></span></span><span class="brand-name">MREO</span></a><nav class="market-nav" aria-label="Main navigation"><a href="buyer.html">Buy</a><a href="seller.html">Sell</a><a href="portfolios.html">Portfolios</a><a href="coordination.html?role=provider" aria-current="page">Coordinate</a><a href="auction.html">Auctions</a></nav></header>
+  <div class="protocol-strip" data-mode-label></div>
+
+  <main class="page-shell coordination-shell">
+    <a class="back-link" href="index.html"><span aria-hidden="true">←</span> MREO home</a>
+
+    <section class="coordination-hero coordination-workspace-hero">
+      <div>
+        <p class="section-label">MREO · Property Operating Workspace</p>
+        <h1>One property.<br>Every handoff.</h1>
+        <p>Follow the same property from acquisition and closing through title, improvements, representation, leasing, and management. Switch perspectives to see exactly what the buyer, seller, or participating service company sees.</p>
+        <div class="workspace-viewbar" aria-label="Coordination perspective">
+          <span class="workspace-view-label">View workspace as</span>
+          <div class="segmented coordination-segmented" role="group" aria-label="Coordination perspective">
+            <button type="button" id="coord-view-buyer" data-role="buyer" aria-pressed="true">Buyer</button>
+            <button type="button" id="coord-view-seller" data-role="seller" aria-pressed="false">Seller</button>
+            <button type="button" id="coord-view-provider" data-role="provider" aria-pressed="false">Service Partner</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="record-card record-card-large" aria-label="Selected property record">
+        <div class="provider-network-visual provider-network-abstract" id="coord-network-visual" hidden>
+          <div class="network-property-art-stage">
+            <img
+              id="coord-network-illustration"
+              class="network-property-art"
+              src="assets/coordination-property-network.svg?v=20260919-portfolio-collage-v20"
+              alt="Portfolio-style collage of connected residential properties"
+              width="1200"
+              height="720"
+            >
+          </div>
+          <div class="network-property-art-footer">
+            <p class="record-eyebrow network-abstract-label">Connected property network</p>
+            <p class="network-property-art-metrics"><strong id="coord-network-active">7</strong> active demonstration jobs · <strong id="coord-network-action">3</strong> need provider action</p>
+          </div>
+        </div>
+
+        <div id="coord-property-record-content">
+          <img id="coord-record-image" alt="" hidden>
+          <p class="record-eyebrow">Shared property record</p>
+          <h2 id="coord-record-title">4218 Maple Ridge Drive, Dallas, TX 75229</h2>
+          <p id="coord-record-meta">$385,000 · Acquisition complete</p>
+          <span class="record-status" id="coord-record-status">MREO record connected</span>
+          <div class="record-card-actions">
+            <a class="text-link" id="coord-choose-property" href="properties.html">Choose another property →</a>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="demo-control-strip" aria-label="Demonstration controls">
+      <div>
+        <strong>Interactive demonstration</strong>
+        <span>Requests and provider activity are saved in this browser so you can switch perspectives and continue the same fictional property story.</span>
+      </div>
+      <div class="demo-control-actions">
+        <button type="button" class="secondary-button" id="coord-advance-demo">Advance active demo</button>
+        <button type="button" class="contract-button" id="coord-reset-demo">Reset all test data</button>
+      </div>
+    </section>
+
+    <section class="role-intro" aria-labelledby="role-workspace-title">
+      <p class="section-label" id="role-workspace-eyebrow">Buyer workspace</p>
+      <div class="role-intro-grid">
+        <div>
+          <h2 id="role-workspace-title">Your acquired property, ready for what comes next.</h2>
+          <p id="role-workspace-copy">Start the next required workflow, review provider responses, approve work, and keep the underlying property information connected automatically.</p>
+        </div>
+        <div class="workspace-stats" aria-label="Workspace status">
+          <div><span>Active requests</span><strong id="coord-stat-open">0</strong></div>
+          <div><span>Connected records</span><strong id="coord-stat-docs">3</strong></div>
+          <div><span>Completed services</span><strong id="coord-stat-complete">0</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="client-workspace">
+      <section class="workspace-two-column">
+        <article class="workspace-panel acquisition-panel" aria-labelledby="acquisition-heading">
+          <p class="section-label" id="acquisition-eyebrow">Acquisition complete</p>
+          <h2 id="acquisition-heading">4218 Maple Ridge is now in your MREO workspace.</h2>
+          <p id="acquisition-copy">The property record carries the transaction information into the next workflow automatically.</p>
+          <dl class="workspace-details" id="acquisition-details"></dl>
+          <div class="form-actions"><a class="primary-button button-blue" id="acquisition-primary-action" href="#coordination-pathways">What comes next ↓</a></div>
+        </article>
+
+        <article class="workspace-panel" aria-labelledby="workspace-documents-heading">
+          <p class="section-label">Connected property information</p>
+          <h2 id="workspace-documents-heading">Information travels with the property</h2>
+          <p>MREO automatically makes the relevant property and transaction records available to each workflow. Downloading and re-uploading the same packet should not be part of the normal process.</p>
+          <div class="document-library" id="coord-document-library"></div>
+        </article>
+      </section>
+
+      <section id="coordination-pathways" aria-labelledby="coordination-services-heading" class="coordination-pathways-section">
+        <p class="section-label">Four coordination pathways</p>
+        <div class="section-heading-row">
+          <div>
+            <h2 id="coordination-services-heading">Choose what this property needs next</h2>
+            <p id="coordination-services-copy">Each pathway is a complete simulated workflow. Submit information as the property client, then switch to Service Partner to see the exact request appear on the other side.</p>
+          </div>
+        </div>
+        <div class="coordination-grid" id="coordination-grid">
+          <a class="coordination-card" data-service="title" href="coordination-service.html?service=title"><span class="coordination-number">01 · TRANSFER</span><h2>Title Transfer</h2><p data-role-description>Coordinate settlement, title review, required documents, exceptions, signatures, and closing.</p><span class="service-status">Not started</span><span class="card-action">Open title workflow →</span></a>
+          <a class="coordination-card" data-service="contractors" href="coordination-service.html?service=contractors"><span class="coordination-number">02 · CONTRACTORS</span><h2>Contractors</h2><p data-role-description>Create a work package, upload property material, receive a scope and proposal, approve the work, and follow completion.</p><span class="service-status">Not started</span><span class="card-action">Open improvement workflow →</span></a>
+          <a class="coordination-card" data-service="realtors" href="coordination-service.html?service=realtors"><span class="coordination-number">03 · REALTORS</span><h2>Realtors</h2><p data-role-description>Send the property packet to a participating brokerage and coordinate representation, pricing, listing, or leasing support.</p><span class="service-status">Not started</span><span class="card-action">Open representation workflow →</span></a>
+          <a class="coordination-card" data-service="rentals" href="coordination-service.html?service=rentals"><span class="coordination-number">04 · RENT / MANAGE</span><h2>Rent / Manage</h2><p data-role-description>Move from rental readiness through tenant placement, lease execution, move-in, maintenance, and ongoing management.</p><span class="service-status">Not started</span><span class="card-action">Open rental workflow →</span></a>
+        </div>
+      </section>
+
+      <section class="workspace-two-column lower-workspace-grid">
+        <article class="workspace-panel" aria-labelledby="client-action-heading">
+          <p class="section-label">What needs your attention</p>
+          <h2 id="client-action-heading">Client action center</h2>
+          <div id="client-action-center" class="action-center"></div>
+        </article>
+        <article class="workspace-panel" aria-labelledby="activity-heading">
+          <p class="section-label">Shared activity</p>
+          <h2 id="activity-heading">Property timeline</h2>
+          <div class="coordination-timeline" id="coordination-timeline"></div>
+        </article>
+      </section>
+    </div>
+
+    <div id="provider-workspace" hidden>
+      <section class="provider-toolbar workspace-panel" aria-labelledby="provider-inbox-heading">
+        <div>
+          <p class="section-label">Participating company portal</p>
+          <h2 id="provider-inbox-heading">Incoming service requests</h2>
+          <p>Requests submitted from the Buyer or Seller workspace appear here with the property packet, client answers, attachments, and current status.</p>
+        </div>
+        <label class="provider-specialty-filter">Company specialty
+          <select id="provider-specialty">
+            <option value="all">All demonstration services</option>
+            <option value="title">Title / settlement</option>
+            <option value="contractors">Construction / improvement</option>
+            <option value="realtors">Brokerage / representation</option>
+            <option value="rentals">Rental / property management</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="provider-summary-grid" aria-label="Provider summary">
+        <div><span>Incoming / active jobs</span><strong id="provider-inbox-count">0</strong></div>
+        <div><span>Awaiting client action</span><strong id="provider-waiting-count">0</strong></div>
+        <div><span>Completed jobs</span><strong id="provider-complete-count">0</strong></div>
+      </section>
+
+      <section aria-labelledby="provider-queue-title" class="provider-queue-section">
+        <p class="section-label">Work queue</p>
+        <h2 id="provider-queue-title">Requests attached to the shared property record</h2>
+        <div class="provider-queue" id="provider-queue"></div>
+      </section>
+
+      <section class="workspace-two-column lower-workspace-grid">
+        <article class="workspace-panel">
+          <p class="section-label">Connected property information</p>
+          <h2>Records available to participating providers</h2>
+          <div class="document-library" id="provider-document-library"></div>
+        </article>
+        <article class="workspace-panel">
+          <p class="section-label">Shared activity</p>
+          <h2>Property timeline</h2>
+          <div class="coordination-timeline" id="provider-timeline"></div>
+        </article>
+      </section>
+    </div>
+
+    <aside class="coordination-note"><strong>MREO coordinates the workflow.</strong><p>This prototype demonstrates a shared operating layer between a property owner, seller, buyer, and independent participating companies. Title, settlement, brokerage, contracting, property-management, legal, and other regulated services remain the responsibility of the applicable provider.</p></aside>
+  </main>
+
+  <footer class="site-footer"><p>MREO connects the transaction to the work required to transfer, improve, represent, rent, and manage the property.</p><p>&copy; <span id="current-year">2026</span> MREO</p></footer>
+  <script src="mreo-config.js"></script><script src="auction-core.js?v=20260914-blind-auction"></script><script src="mreo-service.js?v=20260919-reset-all-v12"></script><script src="app.js"></script><script src="mreo-ui.js?v=20260919-reset-all-v12"></script><script src="coordination-v5-data.js?v=20260919-network-collage-v18"></script><script src="coordination.js?v=20260919-provider-inbox-v16"></script><script src="coordination-response-enhancements.js?v=20260917-provider-response-v1"></script><script src="coordination-workspace-v5.js?v=20260919-network-property-art-v20"></script>
+</body>
+</html>

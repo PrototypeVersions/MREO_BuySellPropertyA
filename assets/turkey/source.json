@@ -1,0 +1,65 @@
+{
+  "source": "User-supplied video frames committed to PrototypeVersions/MREO_BuySell",
+  "sourceCommit": "30e147e33f2ea912bb8a9b29766538d2ae9f182f",
+  "video": "https://www.youtube.com/watch?v=MUdBlpLWFEY",
+  "processing": "Full-resolution WebP encoding at quality 95. Original PNGs retained and linked from the gallery. No cropping, upscaling, or generative edits.",
+  "cover": "assets/turkey/photos/videoframe_18959.webp",
+  "images": [
+    {
+      "bytes": 279802,
+      "height": 720,
+      "original": "assets/videoframe_14441.png",
+      "webImage": "assets/turkey/photos/videoframe_14441.webp",
+      "width": 1280,
+      "caption": "Aerial front view"
+    },
+    {
+      "original": "assets/videoframe_18959.png",
+      "webImage": "assets/turkey/photos/videoframe_18959.webp",
+      "caption": "Front exterior",
+      "width": 1280,
+      "height": 720,
+      "bytes": 130960
+    },
+    {
+      "original": "assets/videoframe_25702.png",
+      "webImage": "assets/turkey/photos/videoframe_25702.webp",
+      "caption": "Terrace, pool, and waterfront views",
+      "width": 1280,
+      "height": 720,
+      "bytes": 155602
+    },
+    {
+      "original": "assets/videoframe_31960.png",
+      "webImage": "assets/turkey/photos/videoframe_31960.webp",
+      "caption": "Living area overlooking the water",
+      "width": 1280,
+      "height": 720,
+      "bytes": 111614
+    },
+    {
+      "original": "assets/videoframe_53771.png",
+      "webImage": "assets/turkey/photos/videoframe_53771.webp",
+      "caption": "Exterior and courtyard",
+      "width": 1280,
+      "height": 720,
+      "bytes": 202716
+    },
+    {
+      "original": "assets/videoframe_69284.png",
+      "webImage": "assets/turkey/photos/videoframe_69284.webp",
+      "caption": "Bedroom with a waterfront view",
+      "width": 1280,
+      "height": 720,
+      "bytes": 74392
+    },
+    {
+      "original": "assets/videoframe_117052.png",
+      "webImage": "assets/turkey/photos/videoframe_117052.webp",
+      "caption": "Pool and waterfront terrace",
+      "width": 1280,
+      "height": 720,
+      "bytes": 186868
+    }
+  ]
+}

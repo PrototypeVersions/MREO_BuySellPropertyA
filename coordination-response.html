@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Review or prepare a provider response inside the MREO property coordination workspace.">
+  <title>Provider Response | MREO Coordination</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="marketplace.css?v=20260917-coordination-workspace">
+  <link rel="stylesheet" href="coordination.css?v=20260917-workspace-v4">
+  <link rel="stylesheet" href="coordination-response.css?v=20260917-provider-response-v1">
+  <link rel="stylesheet" href="coordination-workspace-v5.css?v=20260919-coordination-v8">
+</head>
+<body class="coordination-response-page">
+  <header class="site-header"><a class="brand" href="index.html" aria-label="MREO home"><span class="brand-mark" aria-hidden="true"><span class="brand-circle"></span><span class="brand-square"></span></span><span class="brand-name">MREO</span></a><nav class="market-nav" aria-label="Main navigation"><a href="buyer.html">Buy</a><a href="seller.html">Sell</a><a href="portfolios.html">Portfolios</a><a href="coordination.html?role=provider" aria-current="page">Coordinate</a><a href="auction.html">Auctions</a></nav></header>
+  <div class="protocol-strip" data-mode-label></div>
+
+  <main class="page-shell coordination-shell response-shell">
+    <a class="back-link" id="response-back" href="coordination-service.html"><span aria-hidden="true">←</span> Back to workflow</a>
+
+    <section class="response-hero">
+      <div>
+        <p class="section-label" id="response-eyebrow">Provider response</p>
+        <h1 id="response-title">Review provider response</h1>
+        <p id="response-intro">Review the participating company's response before the workflow moves forward.</p>
+        <div class="workspace-viewbar" aria-label="Response perspective">
+          <span class="workspace-view-label">View response as</span>
+          <div class="segmented coordination-segmented" role="group" aria-label="Response perspective">
+            <button type="button" data-response-role="buyer">Buyer</button>
+            <button type="button" data-response-role="seller">Seller</button>
+            <button type="button" data-response-role="provider">Service Partner</button>
+          </div>
+        </div>
+      </div>
+      <aside class="record-card response-record-card">
+        <img id="response-record-image" alt="" hidden>
+        <p class="record-eyebrow" id="response-service-label">Coordination pathway</p>
+        <h2 id="response-property">MREO property record</h2>
+        <p id="response-property-meta">Shared property record</p>
+        <span class="record-status" id="response-status">Provider reviewing</span>
+      </aside>
+    </section>
+
+    <section class="attention-card response-attention-card" id="response-attention-v6" aria-live="polite">
+      <span class="attention-light" aria-hidden="true"></span>
+      <div class="attention-body">
+        <span class="attention-state">Waiting</span>
+        <strong class="attention-title">Checking workflow status.</strong>
+        <p class="attention-copy">MREO is loading the next action for this perspective.</p>
+      </div>
+      <a class="attention-link" id="response-attention-link" href="#"></a>
+    </section>
+
+    <section class="response-context-bar" aria-label="Response context">
+      <div class="response-provider-context"><img id="response-provider-logo" class="response-provider-logo" alt="" hidden><span>Participating company</span><strong id="response-provider">—</strong></div>
+      <div><span>Client</span><strong id="response-client">—</strong></div>
+      <div><span>Response version</span><strong id="response-version">—</strong></div>
+      <div><span>Sent / updated</span><strong id="response-date">—</strong></div>
+    </section>
+
+    <section class="response-notice" id="response-notice" hidden></section>
+
+    <div id="provider-response-editor" hidden>
+      <section class="response-page-grid">
+        <article class="response-main-card">
+          <p class="section-label">Service Partner</p>
+          <h2 id="provider-editor-title">Prepare provider response</h2>
+          <p id="provider-editor-intro">Review the client's request and prepare the detailed response that will be sent back through MREO.</p>
+          <form id="provider-response-form" class="provider-response-form">
+            <div id="provider-response-fields"></div>
+            <div class="response-form-actions">
+              <button type="submit" class="primary-button button-blue" id="provider-send-response">Send response to client</button>
+              <a class="secondary-button" id="provider-cancel-response" href="coordination-service.html">Back to workflow</a>
+            </div>
+          </form>
+        </article>
+        <aside class="response-side-card">
+          <p class="section-label">Client request</p>
+          <h2>What the client submitted</h2>
+          <div id="response-client-request" class="request-summary"></div>
+          <div class="response-connected-note">
+            <strong>Property information is already connected.</strong>
+            <p>The provider does not need the client to download and re-upload the property or transaction record.</p>
+          </div>
+        </aside>
+      </section>
+    </div>
+
+    <div id="client-response-review" hidden>
+      <section class="response-page-grid">
+        <article class="response-main-card">
+          <div class="response-heading-row">
+            <div>
+              <p class="section-label">Provider response received</p>
+              <h2 id="client-response-heading">Provider response</h2>
+            </div>
+            <span class="status-pill status-proposal" id="client-response-pill">Ready for review</span>
+          </div>
+          <p class="response-summary" id="client-response-summary"></p>
+          <div id="client-response-details" class="response-detail-groups"></div>
+          <div class="client-response-actions" id="client-response-actions"></div>
+          <form class="revision-request-form" id="revision-request-form" hidden>
+            <label>What would you like changed?
+              <textarea id="revision-request-note" required placeholder="Explain the change or clarification you want from the provider."></textarea>
+            </label>
+            <div class="response-form-actions">
+              <button type="submit" class="primary-button button-blue">Send change request</button>
+              <button type="button" class="secondary-button" id="cancel-revision-request">Cancel</button>
+            </div>
+          </form>
+        </article>
+        <aside class="response-side-card">
+          <p class="section-label">Workflow context</p>
+          <h2 id="client-side-title">Your request</h2>
+          <div id="client-side-request" class="request-summary"></div>
+          <a class="secondary-button response-workflow-link" id="client-back-workflow" href="coordination-service.html">Return to workflow</a>
+        </aside>
+      </section>
+    </div>
+
+    <section id="response-empty" class="response-empty-state" hidden>
+      <p class="section-label">Provider response</p>
+      <h2>No provider response is available yet.</h2>
+      <p id="response-empty-copy">Return to the workflow and continue the service request.</p>
+      <a class="primary-button button-blue" id="response-empty-back" href="coordination-service.html">Return to workflow →</a>
+    </section>
+
+    <aside class="coordination-note"><strong>The response stays with the property.</strong><p>The provider prepares the response once inside MREO. The buyer or seller reviews that exact response, approves it or requests changes, and the resulting record remains connected to the property workflow.</p></aside>
+  </main>
+
+  <footer class="site-footer"><p>MREO keeps client requests, provider responses, approvals, and property records connected.</p><p>&copy; <span id="current-year">2026</span> MREO</p></footer>
+  <script src="mreo-config.js"></script><script src="auction-core.js?v=20260919-coordination-v8"></script><script src="mreo-service.js?v=20260919-coordination-v8"></script><script src="app.js"></script><script src="provider-branding.js?v=20260919-provider-branding"></script><script src="coordination-response.js?v=20260919-coordination-v8"></script>
+</body>
+</html>

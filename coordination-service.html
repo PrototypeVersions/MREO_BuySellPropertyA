@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Interactive MREO coordination workflow for property clients and participating service partners.">
+  <title>MREO Coordination Workflow</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="marketplace.css?v=20260917-coordination-workspace">
+  <link rel="stylesheet" href="coordination.css?v=20260917-workspace-v4">\n  <link rel="stylesheet" href="coordination-workspace-v5.css?v=20260919-coordination-v8">
+</head>
+<body class="coordination-service-page">
+  <header class="site-header"><a class="brand" href="index.html" aria-label="MREO home"><span class="brand-mark" aria-hidden="true"><span class="brand-circle"></span><span class="brand-square"></span></span><span class="brand-name">MREO</span></a><nav class="market-nav" aria-label="Main navigation"><a href="buyer.html">Buy</a><a href="seller.html">Sell</a><a href="portfolios.html">Portfolios</a><a href="coordination.html?role=provider" aria-current="page">Coordinate</a><a href="auction.html">Auctions</a></nav></header>
+  <div class="protocol-strip" data-mode-label></div>
+
+  <main class="page-shell coordination-shell">
+    <a class="back-link" id="service-back" href="coordination.html"><span aria-hidden="true">←</span> Property workspace</a>
+
+    <section class="coordination-hero service-hero">
+      <div>
+        <p class="section-label" id="service-eyebrow">Coordinate</p>
+        <h1 id="service-title">Coordination workflow</h1>
+        <p id="service-intro">Coordinate services around the selected property record.</p>
+        <div class="workspace-viewbar service-viewbar" aria-label="Coordination perspective">
+          <span class="workspace-view-label">View workflow as</span>
+          <div class="segmented coordination-segmented" role="group" aria-label="Coordination perspective">
+            <button type="button" id="service-view-buyer" data-role="buyer" aria-pressed="true">Buyer</button>
+            <button type="button" id="service-view-seller" data-role="seller" aria-pressed="false">Seller</button>
+            <button type="button" id="service-view-provider" data-role="provider" aria-pressed="false">Service Partner</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="record-card record-card-large" aria-label="Selected property record">
+        <img id="service-record-image" alt="" hidden>
+        <p class="record-eyebrow">Shared property record</p>
+        <h2 id="service-record-title">4218 Maple Ridge Drive, Dallas, TX 75229</h2>
+        <p id="service-record-meta">$385,000 · MREO property record</p>
+        <span class="record-status" id="service-record-status">MREO record connected</span>
+      </aside>
+    </section>
+
+    <section class="demo-control-strip service-demo-strip" aria-label="Demonstration controls">
+      <div><strong>Same request, three perspectives</strong><span>Submit from Buyer or Seller, then switch to Service Partner to work the exact same fictional request.</span></div>
+      <div class="demo-control-actions"><button type="button" class="secondary-button" id="service-advance-demo">Advance demo</button></div>
+    </section>
+
+    <div class="service-layout service-layout-v2">
+      <section class="workflow-panel" aria-labelledby="workflow-title">
+        <p class="section-label">Workflow</p>
+        <h2 id="workflow-title">Coordination steps</h2>
+        <ol class="workflow-list workflow-list-v2" id="service-workflow"></ol>
+        <div class="workflow-state-card" id="workflow-state-card">
+          <span>Current status</span>
+          <strong id="workflow-current-status">Not started</strong>
+          <p id="workflow-current-note">Create a request to begin this pathway.</p>
+        </div>
+      </section>
+
+      <section class="request-panel" id="client-service-panel" aria-labelledby="request-title">
+        <p class="section-label" id="client-request-eyebrow">Client submission</p>
+        <h2 id="request-title">Create the request</h2>
+        <p id="request-intro">Provide the information a participating company would ordinarily need to begin.</p>
+
+        <form class="service-request-form" id="service-request-form">
+          <div id="service-form-fields"></div>
+          <label class="service-upload-field">Optional additional files
+            <span>The existing MREO property and transaction record is already attached automatically. Add a file only if the provider needs something that is not already in the record.</span>
+            <input id="service-attachments" name="attachments" type="file" multiple>
+          </label>
+          <div class="service-selected-files" id="service-selected-files" aria-live="polite"></div>
+          <button class="primary-button button-blue" id="service-submit" type="submit">Submit coordination request</button>
+        </form>
+
+        <div class="request-status-card" id="client-request-status" hidden>
+          <div class="request-status-heading"><span class="status-pill" id="client-status-pill">Submitted</span><strong id="client-status-title">Request submitted</strong></div>
+          <p id="client-status-copy"></p>
+          <div id="client-request-summary" class="request-summary"></div>
+          <div id="client-request-actions" class="form-actions request-actions"></div>
+        </div>
+      </section>
+
+      <section class="request-panel provider-service-panel" id="provider-service-panel" aria-labelledby="provider-service-title" hidden>
+        <p class="section-label">Participating company portal</p>
+        <h2 id="provider-service-title">Incoming request</h2>
+        <div id="provider-empty-state" class="provider-empty-state">
+          <strong>No client request yet.</strong>
+          <p>Switch to Buyer or Seller, submit this pathway, and the exact request will appear here.</p>
+        </div>
+        <div id="provider-request-detail" hidden>
+          <div class="provider-request-header">
+            <div><span class="status-pill" id="provider-status-pill">Submitted</span><h3 id="provider-request-name">Property coordination request</h3></div>
+            <div class="provider-company-badge"><img id="provider-company-logo" class="provider-company-logo" alt="" hidden><span>Assigned company</span><strong id="provider-company-name">Awaiting match</strong></div>
+          </div>
+          <div class="provider-detail-grid">
+            <div>
+              <h4>Client information</h4>
+              <div id="provider-request-summary" class="request-summary"></div>
+            </div>
+            <div>
+              <h4>Attachments</h4>
+              <div id="provider-attachment-list" class="attachment-list"></div>
+            </div>
+          </div>
+          <div class="provider-response-box">
+            <h4>Provider actions</h4>
+            <p id="provider-action-guidance">Review the property packet and accept the request when ready.</p>
+            <div class="provider-action-buttons" id="provider-action-buttons"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="workspace-two-column service-lower-grid">
+      <article class="workspace-panel">
+        <p class="section-label">Workflow records</p>
+        <h2>Connected service records</h2>
+        <p>Provider responses and final closeout records stay attached to the property automatically. Only final records that are useful outside MREO are presented as downloads.</p>
+        <div id="service-document-library" class="document-library"></div>
+      </article>
+      <article class="workspace-panel">
+        <p class="section-label">Shared activity</p>
+        <h2>Request timeline</h2>
+        <div id="service-timeline" class="coordination-timeline"></div>
+      </article>
+    </section>
+
+    <aside class="coordination-note"><strong>Coordination, not substitution.</strong><p>The prototype keeps requests, property information, provider responses, documents, approvals, and status connected. The underlying title, brokerage, construction, leasing, property-management, legal, and other services are performed by the applicable independent provider.</p></aside>
+  </main>
+
+  <footer class="site-footer"><p>MREO coordinates property workflows and provider handoffs around a shared property record.</p><p>&copy; <span id="current-year">2026</span> MREO</p></footer>
+  <script src="mreo-config.js"></script><script src="auction-core.js?v=20260914-blind-auction"></script><script src="mreo-service.js?v=20260919-reset-all-v12"></script><script src="app.js"></script><script src="mreo-ui.js?v=20260919-reset-all-v12"></script><script src="provider-branding.js?v=20260919-provider-branding"></script><script src="coordination-v5-data.js?v=20260919-network-collage-v18"></script><script src="coordination.js?v=20260919-provider-inbox-v16"></script><script src="coordination-response-enhancements.js?v=20260917-provider-response-v1"></script><script src="coordination-workspace-v5.js?v=20260919-provider-inbox-v16"></script>
+</body>
+</html>
