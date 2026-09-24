@@ -7,6 +7,7 @@
   if (!S || !C || !$("auction-handoff")) return;
 
   let refreshToken = 0;
+  const intakeTransactionId = new URLSearchParams(location.search).get("transaction");
 
   const cashNumber = (value) => {
     const n = Number(value || 0);
@@ -68,6 +69,11 @@
 
     /* Keep this helper out of the main auction-loading path. */
     if (($("auction-status")?.textContent || "").trim() !== "Closed") {
+      if (intakeTransactionId) {
+        container.innerHTML = `<section class="form-panel" aria-label="MREO conversation"><p class="section-label">Private workspace ready</p><h2>Your MREO conversation is open.</h2><p>Message the MREO Agent, review action items, upload documents, and keep this property’s activity together in one private record.</p><div class="form-actions"><a class="primary-button button-blue" href="coordination.html?transaction=${encodeURIComponent(intakeTransactionId)}">Open MREO conversation →</a><a class="secondary-button" href="profile.html">View My MREO</a></div></section>`;
+        container.hidden = false;
+        return;
+      }
       hideHandoff(container);
       return;
     }
