@@ -30,7 +30,7 @@ function validDetails(details){const name=String(details?.name||"").trim().slice
 function validSubmission(role,data){
  const title=String(data?.title||"").trim().slice(0,300);if(!title)throw new HttpError("Provide a property address or portfolio name.");
  const details={};for(const [k,v] of Object.entries(data?.details||{}).slice(0,60))if(typeof v==="string")details[String(k).slice(0,80)]=v.slice(0,4000);
- if(role==="buyer")return {title,auctionId:String(data.auctionId||"").slice(0,100),proposedOffer:String(data.proposedOffer||"").slice(0,30),details};
+ if(role==="buyer")return {title,auctionId:String(data.auctionId||"").slice(0,100),proposedOffer:String(data.proposedOffer||"").slice(0,30),details,draftId:crypto.randomUUID()};
  const minimum=C.money(data.minimum);if(minimum<1||minimum>999999999000)throw new HttpError("Enter a valid seller minimum.");const days=Number(data.days);if(![1,21].includes(days))throw new HttpError("Choose 1 or 21 days.");
  const kind=data.kind==="portfolio"?"portfolio":"property";
  const portfolio=kind==="portfolio"?C.normalizePortfolio(C.portfolioMatrix(Array.isArray(data.portfolio)?data.portfolio:[])):[];
@@ -46,6 +46,10 @@ class Exchange{
  async rate(key,limit,windowMs=3600000){const k="rate:"+await sha(key),now=Date.now(),r=await this.ctx.storage.get(k)||{start:now,count:0};if(now-r.start>=windowMs){r.start=now;r.count=0;}r.count++;if(r.count>limit)throw new HttpError("Too many attempts. Please try again later.",429);await this.ctx.storage.put(k,r);}
  async allAuctions(){return [...(await this.ctx.storage.list({prefix:"auction:"})).values()];}
  async schedule(){const active=(await this.allAuctions()).filter(a=>a.status==="active");if(active.length)await this.ctx.storage.setAlarm(Math.max(Date.now()+1000,Math.min(...active.map(a=>a.endsAt))));else await this.ctx.storage.deleteAlarm();}
+ async intakeHandoff(a,relatedAuctionId=null){
+ let amount=0;try{amount=C.money(a.role==="buyer"?a.submission.proposedOffer:a.submission.minimum);}catch{}
+ return createHandoffToken(this.env,{auctionId:"intake-"+(a.submission.draftId||a.id),role:a.role,stage:"intake",title:a.submission.title,kind:a.submission.kind||"property",amount,property:{stage:"intake",relatedAuctionId:relatedAuctionId||a.submission.auctionId||null}});
+ }
  async settle(){
  for(const a of await this.allAuctions()){if(a.status!=="active"||Date.now()<a.endsAt)continue;C.closeAuction(a);await this.ctx.storage.put("auction:"+a.id,a);
  const ids=new Set([a.sellerId,...a.bids.map(b=>b.buyerId)]);for(const id of ids)await this.ctx.storage.put("notice:"+id+":"+a.id,{auctionId:a.id,title:a.title,closedAt:a.closedAt,outcome:id===a.sellerId?"seller-result":C.outcome(a,id),...(id===a.sellerId?{highest:C.highest(a)?.amount||0}:{}),reserveMet:!!a.winnerId});}
@@ -122,13 +126,13 @@ class Exchange{
  }
  if(path==="/activate"&&method==="POST"){
  const a=await this.account(request);if(a.creditCents<100)throw new HttpError("A verified $1 participation credit is required.",403);
- if(a.role==="buyer"){const auctionId=a.submission.auctionId;return json({auctionId:auctionId&&await this.ctx.storage.get("auction:"+auctionId)?auctionId:null});}
- if(a.submission.auctionId)return json({auctionId:a.submission.auctionId});
+ if(a.role==="buyer"){const requested=a.submission.auctionId,auctionId=requested&&await this.ctx.storage.get("auction:"+requested)?requested:null;return json({auctionId,handoffToken:await this.intakeHandoff(a,auctionId)});}
+ if(a.submission.auctionId)return json({auctionId:a.submission.auctionId,handoffToken:await this.intakeHandoff(a,a.submission.auctionId)});
  const draft=a.submission;if(this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")&&draft.days!==21)throw new HttpError("Use the 21-day standard duration for live auctions.");
  const id="auction-"+draft.draftId,auction=C.createAuction({id,title:draft.title,sellerId:a.id,minimum:draft.minimum,days:draft.days,kind:draft.kind,portfolioCount:draft.portfolio.length,demo:false});
  auction.example=false;auction.portfolioCount=draft.portfolio.length;
  await this.ctx.storage.put("auction:"+id,auction);if(draft.portfolio.length)await this.ctx.storage.put("portfolio:"+id,draft.portfolio);
- a.submission.auctionId=id;await this.ctx.storage.put("account:"+a.id,a);await this.schedule();return json({auctionId:id},201);
+ a.submission.auctionId=id;await this.ctx.storage.put("account:"+a.id,a);await this.schedule();return json({auctionId:id,handoffToken:await this.intakeHandoff(a,id)},201);
  }
  if(path==="/auctions"&&method==="GET")return json({auctions:(await this.allAuctions()).map(({id,title,kind,reserve,portfolioCount,status,endsAt,example})=>({id,title,kind,reserve,portfolioCount,status,endsAt,example}))});
  if(path==="/notifications"&&method==="GET"){
