@@ -76,7 +76,10 @@ class Exchange{
  async route(request){
  const url=new URL(request.url),path=url.pathname,method=request.method;
  if(path==="/webhook"&&method==="POST")return this.webhook(request);
- if(path==="/config"&&method==="GET")return json({connected:true,testPayments:!this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_"),defaultDays:this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")?21:1});
+ if(path==="/config"&&method==="GET"){
+ const stripeConfigured=/^sk_(test|live)_/.test(this.env.STRIPE_SECRET_KEY||""),participationBypass=!this.env.STRIPE_SECRET_KEY&&this.env.ALLOW_LIVE_PAYMENTS!=="true";
+ return json({connected:true,stripeConfigured,participationBypass,testPayments:participationBypass||!this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_"),defaultDays:this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")?21:1});
+ }
  if(path==="/register"&&method==="POST"){
  await this.rate("registration:"+request.headers.get("CF-Connecting-IP"),20);
  const data=await bodyJSON(request),role=data.role;if(!["buyer","seller"].includes(role))throw new HttpError("Invalid role.");
@@ -90,6 +93,9 @@ class Exchange{
  if(path==="/me"&&method==="GET")return json(this.publicAccount(await this.account(request)));
  if(path==="/checkout"&&method==="POST"){
  const a=await this.account(request),data=await bodyJSON(request);if(a.creditCents>=100)return json({paid:true});if(a.revokedAt)throw new HttpError("Contact MREO about the refunded or disputed payment.");
+ if(!this.env.STRIPE_SECRET_KEY&&this.env.ALLOW_LIVE_PAYMENTS!=="true"){
+  const timestamp=Date.now();a.creditCents=100;a.testBypassAt=timestamp;await this.ctx.storage.put("account:"+a.id,a);await this.ctx.storage.put("ledger:test-bypass:"+a.id,{accountId:a.id,amountCents:0,creditCents:100,currency:"usd",kind:"test_participation_bypass",createdAt:timestamp});return json({paid:true,testBypass:true});
+ }
  if(data.saveConsent!==true)throw new HttpError("Consent is required to save payment credentials.");await this.rate("checkout:"+a.id,15);
  if(a.checkoutSession){const previous=await stripe(this.env,"/checkout/sessions/"+encodeURIComponent(a.checkoutSession));if(previous.payment_status==="paid"){await this.credit(previous);return json({paid:true});}if(previous.status==="open"&&previous.url)return json({url:previous.url});}
  const base=siteURL(this.env),session=await stripe(this.env,"/checkout/sessions",{
