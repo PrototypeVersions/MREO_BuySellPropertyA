@@ -113,6 +113,8 @@ async function payment(){
  if(!$("payment-submit"))return;
  const role=params.get("role")==="seller"?"seller":"buyer";S.setRole(role);$("payment-role").textContent=role==="seller"?"Seller":"Buyer";$("payment-back").href=role+".html";
  if(S.demo){$("payment-intro").textContent="Try the complete participation flow with a $1 test credit."; $("payment-explanation").textContent="This test step does not charge money or collect payment credentials. The connected version uses Stripe checkout to collect $1 and save your payment method."; $("payment-consent-label").textContent="I understand this adds a $1 test credit. No money is charged and no card is saved.";}
+ const deferred=!S.demo&&S.status?.()?.participationBypass;
+ if(deferred){$("payment-intro").textContent="Continue with a test participation credit while Stripe setup is deferred.";$("payment-explanation").textContent="No money will be charged and no card details will be requested. Clicking Auction grants a temporary test credit and continues to the auction.";$("payment-consent-row").hidden=true;}
  const button=$("payment-submit"),coordinate=$("payment-coordinate"),coordinateActions=$("payment-coordinate-actions"),coordinateNote=$("payment-coordinate-note");
  if(coordinateActions)coordinateActions.hidden=role!=="seller";
  if(coordinateNote)coordinateNote.hidden=role!=="seller";
@@ -136,7 +138,7 @@ async function payment(){
  async function refresh(){
  const a=await S.me(role);if(!a){message("payment-message","Submit your "+role+" information before completing participation.",true);button.disabled=true;button.textContent="Submit your information first";if(coordinate)coordinate.setAttribute("aria-disabled","true");return null;}
  $("payment-account").textContent=a.name;$("payment-credit").textContent="$"+(Number(a.creditCents||0)/100).toFixed(2)+(S.demo?" test":"");if(coordinate){coordinate.href=coordinateHref(a);coordinate.removeAttribute("aria-disabled");}
- const paid=a.creditCents>=100;$("payment-consent-row").hidden=paid;button.disabled=false;button.textContent="Auction →";return a;
+ const paid=a.creditCents>=100;$("payment-consent-row").hidden=paid||deferred;button.disabled=false;button.textContent="Auction →";return a;
  }
  async function ensureParticipation(){
   a=await S.me(role);
