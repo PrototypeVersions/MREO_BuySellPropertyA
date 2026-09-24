@@ -1,6 +1,7 @@
 (function serviceModule(){
 "use strict";
 const C=globalThis.MreoCore,config=globalThis.MREO_CONFIG||{mode:"demo"};
+let connectionStatus=null;
 const demo=config.mode!=="connected";
 const root=location.pathname.slice(0,location.pathname.lastIndexOf("/")+1);
 const key="mreo:v3:"+root;
@@ -57,7 +58,7 @@ async function api(path,options={},role=currentRole()){
  try{const r=await fetch(config.apiBase.replace(/\/$/,"")+path,{...options,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...options.headers},signal:controller.signal});const data=await r.json();if(!r.ok)throw Error(data.error||"The service could not complete that request.");return data;}catch(e){if(e.name==="AbortError")throw Error("The service took too long to respond. Please try again.");throw e;}finally{clearTimeout(timer);}
 }
 async function init(){
- if(!demo){const status=await api("/config");document.querySelectorAll("[data-mode-label]").forEach(el=>{el.textContent=status.testPayments?"Connected test mode · Stripe test payments · No real money":"Connected auctions · Payments verified through Stripe";});return;}
+ if(!demo){const status=await api("/config");connectionStatus=status;document.querySelectorAll("[data-mode-label]").forEach(el=>{el.textContent=status.participationBypass?"Connected test mode · Payment deferred · No real money":status.testPayments?"Connected test mode · Stripe test payments · No real money":"Connected auctions · Payments verified through Stripe";});return status;}
  const s=read();if(s.exampleCatalogVersion>=4)return;
  let rows=[];
  if(!s.auctions["demo-portfolio"]){
@@ -125,6 +126,7 @@ async function me(role=currentRole()){
  const id=session(role)?.id;return id?read().accounts[id]||null:null;
 }
 async function checkout(role,consent){
+ if(!demo&&connectionStatus?.participationBypass)return api("/checkout",{method:"POST",body:JSON.stringify({testBypass:true})},role);
  if(!consent)throw Error("Please confirm the payment and credential-saving terms.");
  if(!demo)return api("/checkout",{method:"POST",body:JSON.stringify({saveConsent:true})},role);
  const s=read(),id=session(role)?.id,a=s.accounts[id];if(!a)throw Error("Submit your information first.");
@@ -170,5 +172,5 @@ async function finish(id){if(!demo)throw Error("Test controls are unavailable.")
 async function restart(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);write(s);}
 async function completeSale(id){if(!demo)throw Error("Only test closing can be simulated here.");const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);}
 async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}
-globalThis.MreoService={demo,key,init,register,me,checkout,confirm,activate,list,auction,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
+globalThis.MreoService={demo,key,init,status:()=>connectionStatus,register,me,checkout,confirm,activate,list,auction,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
 })();
