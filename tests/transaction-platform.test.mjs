@@ -55,3 +55,16 @@ test("messages are corrected by appending a new audited record", async () => {
   const events=(await data(await apiFetch(request(`/api/v1/transactions/${created.id}/events`,{user:"alice"}),e))).body.events;
   assert.ok(events.some(event=>event.event_type==="message.corrected"));
 });
+
+test("intake creates an active private conversation and hides other participant emails", async () => {
+  const e=env();
+  const alice=(await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"alice",email:"alice@example.com",body:{role:"buyer",stage:"intake",title:"Private interest",auctionId:"intake-shared"}}),e))).body;
+  await apiFetch(request("/api/v1/transactions",{method:"POST",user:"bob",email:"bob@example.com",body:{role:"seller",stage:"intake",title:"Private interest",auctionId:"intake-shared"}}),e);
+  const view=(await data(await apiFetch(request(`/api/v1/transactions/${alice.id}`,{user:"alice",email:"alice@example.com"}),e))).body;
+  assert.equal(view.status,"active");assert.equal(view.participants.find(person=>person.id.startsWith("usr_")&&person.email==="alice@example.com")?.email,"alice@example.com");
+  assert.equal(view.participants.find(person=>person.email==="bob@example.com"),undefined);
+  const tasks=(await data(await apiFetch(request(`/api/v1/transactions/${alice.id}/tasks`,{user:"alice",email:"alice@example.com"}),e))).body.tasks;
+  assert.match(tasks[0].title,/message/i);
+  const events=(await data(await apiFetch(request(`/api/v1/transactions/${alice.id}/events`,{user:"alice",email:"alice@example.com"}),e))).body.events;
+  assert.ok(events.every(event=>event.metadata_json==="{}"));
+});
