@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {createHmac} from "node:crypto";
 import {Exchange,verifyStripeSignature} from "../backend/worker.js";
+import {verifyHandoffToken} from "../backend/handoff.js";
 const C=globalThis.MreoCore;
 function context(){
  const data=new Map();let queue=Promise.resolve(),alarm=null;
@@ -46,6 +47,14 @@ test("missing Stripe grants an explicit test credit while live payments are disa
  let r=await ex.fetch(request("/checkout","POST",{testBypass:true},seller.token));assert.equal(r.status,200);assert.equal((await r.json()).testBypass,true);assert.equal(ctx.data.get("account:"+seller.id).creditCents,100);
  assert.equal(ctx.data.get("ledger:test-bypass:"+seller.id).amountCents,0);
  r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,201);
+});
+test("paid participants receive a signed intake workspace before an auction closes",async()=>{
+ const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),buyer=await register(ex,"buyer");
+ await ex.fetch(request("/checkout","POST",{testBypass:true},buyer.token));
+ const result=await (await ex.fetch(request("/activate","POST",{},buyer.token))).json();
+ assert.equal(result.auctionId,null);assert.match(result.handoffToken,/\./);
+ const claims=await verifyHandoffToken(testEnv,result.handoffToken);
+ assert.equal(claims.stage,"intake");assert.equal(claims.role,"buyer");assert.match(claims.auctionId,/^intake-/);assert.equal(claims.title,"Test listing");
 });
 test("concurrent equal blind bids are both saved and expired auctions reject late bids",async()=>{
  const ctx=context(),ex=new Exchange(ctx,env),buyer1=await register(ex,"buyer"),buyer2=await register(ex,"buyer");
