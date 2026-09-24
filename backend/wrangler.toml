@@ -18,7 +18,7 @@ class_name = "TransactionRoom"
 [[d1_databases]]
 binding = "DB"
 database_name = "mreo-dev"
-database_id = "REPLACE_WITH_MREO_DEV_DATABASE_ID"
+database_id = "371d336e-cc35-4b60-a236-3bd08c96e754"
 migrations_dir = "../migrations"
 
 [[r2_buckets]]
