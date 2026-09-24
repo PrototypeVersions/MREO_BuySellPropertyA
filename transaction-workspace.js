@@ -24,7 +24,7 @@
       <header class="transaction-head"><div><p class="section-label">Transaction workspace · ${esc(role)}</p><h1>${esc(transaction.title)}</h1><p>${esc(transaction.kind)} · ${esc(transaction.status)}${transaction.amount_cents ? ` · $${(transaction.amount_cents/100).toLocaleString()}` : ""}</p></div><span class="status-chip">${esc(transaction.status)}</span></header>
       <section id="workspace-attention" class="attention-board"></section>
       <div class="workspace-columns"><div class="transaction-app">
-        <section class="workspace-card"><h2>${role === "agent" ? "Participant threads" : "MREO Agent thread"}</h2><p class="workspace-card-subtitle">Buyer and seller conversations are never combined into a group chat.</p><div id="transaction-thread"></div></section>
+        <section class="workspace-card"><h2>${role === "agent" ? "Participant conversations" : "Messages with MREO"}</h2><p class="workspace-card-subtitle">${role === "agent" ? "Buyer, seller, and provider conversations remain separate." : "This is your private text thread with the MREO Agent. Other transaction participants cannot read it."}</p><div id="transaction-thread"></div></section>
         <section class="workspace-card"><h2>Coordination pathways</h2><p class="workspace-card-subtitle">Relevant property and transaction records remain connected across each independent provider workflow.</p><div class="transaction-list">${serviceCards}</div></section>
         <section class="workspace-card"><h2>Chronological transaction history</h2><p class="workspace-card-subtitle">Messages remain conversational; system events form the permanent audit history.</p><div id="event-list" class="event-list"></div></section>
       </div><aside class="transaction-app">
