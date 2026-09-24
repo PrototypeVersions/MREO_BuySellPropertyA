@@ -19,8 +19,13 @@ const viewTransaction = row => ({...row, property:parseJSON(row.property_json, {
 export async function listTransactions(env, user) {
   const staff = await hasRole(env, user.id, "agent") || await hasRole(env, user.id, "admin");
   const rows = staff
-    ? await all(env, `SELECT t.*, 'agent' viewer_role FROM transactions t ORDER BY t.updated_at DESC LIMIT 200`)
-    : await all(env, `SELECT t.*, p.role viewer_role FROM transactions t
+    ? await all(env, `SELECT t.*, 'agent' viewer_role,
+        (SELECT count(*) FROM tasks task WHERE task.transaction_id = t.id AND task.status = 'action') action_count
+        FROM transactions t ORDER BY t.updated_at DESC LIMIT 200`)
+    : await all(env, `SELECT t.*, p.role viewer_role,
+        (SELECT count(*) FROM tasks task WHERE task.transaction_id = t.id AND task.status = 'action'
+          AND (task.assigned_user_id = p.user_id OR (task.assigned_user_id IS NULL AND task.assigned_role = p.role))) action_count
+        FROM transactions t
         JOIN transaction_participants p ON p.transaction_id = t.id
         WHERE p.user_id = ? AND p.status = 'active' ORDER BY t.updated_at DESC LIMIT 200`, user.id);
   return rows.map(viewTransaction);
@@ -33,7 +38,8 @@ export async function getTransaction(env, transactionId, user) {
   const participants = await all(env, `SELECT p.role, p.status, u.id, u.display_name, u.email
     FROM transaction_participants p JOIN users u ON u.id = p.user_id
     WHERE p.transaction_id = ? AND p.status <> 'removed' ORDER BY p.created_at`, transactionId);
-  return {...viewTransaction(transaction), viewerRole:access.role, participants};
+  const visibleParticipants = access.staff ? participants : participants.map(person => ({...person, email:person.id === user.id ? person.email : null}));
+  return {...viewTransaction(transaction), viewerRole:access.role, participants:visibleParticipants};
 }
 
 export async function createTransaction(request, env, user) {
@@ -51,18 +57,18 @@ export async function createTransaction(request, env, user) {
   }
   const title = clean(claims.title, 300);
   if (!title) throw new HttpError("Provide the property or portfolio title.", 400, "title_required");
-  const transactionId = id("tx"), timestamp = now(), kind = claims.kind === "portfolio" ? "portfolio" : "property";
+  const transactionId = id("tx"), timestamp = now(), kind = claims.kind === "portfolio" ? "portfolio" : "property", intake = claims.stage === "intake";
   const amount = Number.isFinite(Number(claims.amount)) && Number(claims.amount) > 0 ? Math.round(Number(claims.amount) * 100) : null;
   const property = typeof claims.property === "object" && claims.property ? claims.property : {};
   await batch(env, [
-    ["INSERT INTO transactions (id, source_auction_id, kind, title, status, amount_cents, property_json, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'closing', ?, ?, ?, ?, ?)", [transactionId, sourceAuctionId, kind, title, amount, JSON.stringify(property), user.id, timestamp, timestamp]],
+    ["INSERT INTO transactions (id, source_auction_id, kind, title, status, amount_cents, property_json, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [transactionId, sourceAuctionId, kind, title, intake ? "active" : "closing", amount, JSON.stringify(property), user.id, timestamp, timestamp]],
     ["INSERT INTO transaction_participants (transaction_id, user_id, role, status, created_at) VALUES (?, ?, ?, 'active', ?)", [transactionId, user.id, role, timestamp]],
     ["INSERT INTO threads (id, transaction_id, kind, created_at) VALUES (?, ?, 'buyer_agent', ?)", [id("thr"), transactionId, timestamp]],
     ["INSERT INTO threads (id, transaction_id, kind, created_at) VALUES (?, ?, 'seller_agent', ?)", [id("thr"), transactionId, timestamp]],
     ["INSERT INTO threads (id, transaction_id, kind, created_at) VALUES (?, ?, 'provider_agent', ?)", [id("thr"), transactionId, timestamp]],
-    ["INSERT INTO tasks (id, transaction_id, assigned_role, assigned_user_id, type, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'transaction_onboarding', ?, 'action', ?, ?)", [id("task"), transactionId, role, user.id, role === "buyer" ? "Review winning transaction and await agent instructions" : "Review auction result and await agent instructions", timestamp, timestamp]]
+    ["INSERT INTO tasks (id, transaction_id, assigned_role, assigned_user_id, type, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'transaction_onboarding', ?, 'action', ?, ?)", [id("task"), transactionId, role, user.id, intake ? (role === "buyer" ? "Send MREO a message about your property interest" : "Review your listing workspace and message MREO") : (role === "buyer" ? "Review winning transaction and await agent instructions" : "Review auction result and await agent instructions"), timestamp, timestamp]]
   ]);
-  await audit(env, {transactionId, actorUserId:user.id, eventType:"transaction.created", entityType:"transaction", entityId:transactionId, summary:"MREO transaction workspace created.", metadata:{role, sourceAuctionId}});
+  await audit(env, {transactionId, actorUserId:user.id, eventType:"transaction.created", entityType:"transaction", entityId:transactionId, summary:intake ? "MREO private conversation and intake workspace created." : "MREO transaction workspace created.", metadata:{role, sourceAuctionId, stage:intake ? "intake" : "closing"}});
   return getTransaction(env, transactionId, user);
 }
 
@@ -79,7 +85,8 @@ export async function addParticipant(request, env, user, transactionId) {
 }
 
 export async function transactionEvents(env, transactionId, user) {
-  await participation(env, transactionId, user);
-  return all(env, `SELECT a.*, u.display_name actor_name FROM audit_events a LEFT JOIN users u ON u.id = a.actor_user_id
+  const access = await participation(env, transactionId, user);
+  const rows = await all(env, `SELECT a.*, u.display_name actor_name FROM audit_events a LEFT JOIN users u ON u.id = a.actor_user_id
     WHERE a.transaction_id = ? ORDER BY a.created_at ASC LIMIT 500`, transactionId);
+  return access.staff ? rows : rows.map(({metadata_json, ...event}) => ({...event, metadata_json:"{}"}));
 }
