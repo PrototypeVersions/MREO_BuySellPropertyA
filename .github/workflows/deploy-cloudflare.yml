@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 20
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       SIGNWELL_API_KEY: ${{ secrets.SIGNWELL_API_KEY }}
@@ -41,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY SIGNWELL_API_KEY MREO_AGENT_EMAILS; do
+          for name in CLOUDFLARE_API_TOKEN CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY SIGNWELL_API_KEY MREO_AGENT_EMAILS; do
             if [[ -z "${!name:-}" ]]; then missing+=("$name"); fi
           done
           if (( ${#missing[@]} )); then
@@ -51,6 +50,24 @@ jobs:
 
       - name: Install project dependencies
         run: npm ci
+
+      - name: Resolve Cloudflare account
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="$(npx --yes wrangler@4.137.0 whoami --json)"
+          account_id="$(IDENTITY="$identity" node -e '
+            const body = JSON.parse(process.env.IDENTITY);
+            const accounts = body.accounts || body.memberships || body.account || [];
+            const first = Array.isArray(accounts) ? accounts[0] : accounts;
+            const id = first?.id || first?.account_id || first?.account?.id || body.account_id;
+            if (id) process.stdout.write(String(id));
+          ')"
+          if [[ -z "$account_id" ]]; then
+            echo "Unable to determine the Cloudflare account identifier from the deployment token." >&2
+            exit 1
+          fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
 
       - name: Provision D1 and R2
         id: resources
