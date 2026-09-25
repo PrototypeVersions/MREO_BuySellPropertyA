@@ -23,7 +23,7 @@ jobs:
       - name: Test desktop and mobile flows
         run: npm run test:browser
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: marketplace-test-results
           path: test-results/

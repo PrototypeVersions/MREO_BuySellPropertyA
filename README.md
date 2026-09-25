@@ -4,7 +4,9 @@ As-is property and portfolio marketplace built from the existing BuySellProperty
 
 ## Try the site
 
-Open [MREO BuySell](https://prototypeversions.github.io/MREO_BuySell/).
+Open [MREO BuySell](https://prototypeversions.github.io/MREO_BuySellPropertyA/).
+
+For the account-free guided story, start at **Explore**. Auction, Messages, Coordination, and Files are separate views of one fictional property case. Sample PDFs and simulated signatures remain in their original conversation and also appear in Files. Each run saves independently in that browser. See [Property workspaces and saved data](docs/DATA_MODEL.md) for storage, access, and current production limitations.
 
 - Submit buyer interest or seller information, then complete the clearly marked $1 **test** participation step.
 - Open **Auctions** to see the countdown and bid count. Buyers see only their own bids, with no leading or outbid signals. Positive whole-dollar bids are accepted independently of other offers, including lower and equal amounts. The highest qualifying bid wins at close; equal bids use the earliest received bid. Other buyers’ amounts stay private after closing. The examples include Dallas, Fort Worth, Plano, and the REO portfolio; the Turkey property is not an auction example. Open **Test the auction** to select Test Buyer A, B, C, or Test Seller, advance to the result, or restart the example.
@@ -50,7 +52,7 @@ The repository now also contains the permanent MREO transaction layer. It is del
 - SignWell integration defaults to test mode. Its webhook is treated as an untrusted notification: MREO pulls the authoritative document record from SignWell before changing local state, then retrieves and stores the completed PDF.
 - An auction can become a permanent transaction only through a five-minute signed handoff issued to the actual listing seller or winning buyer.
 
-The public `experience.html` demonstration requires no account. A visitor chooses Buyer, Seller, MREO Agent, or Service Partner once; fictional counterparties advance automatically. The old perspective switcher remains available only in direct/internal demonstration and browser-test flows.
+The public `experience.html` demonstration requires no account. A visitor chooses Buyer, Seller, MREO Agent, or Service Partner once and opens `demo-case.html`; scripted counterparts and explicit simulation controls illustrate the next steps. The old provider walkthroughs remain separately available through Coordinate. Their older perspective switcher remains in those direct/internal demonstration and browser-test flows.
 
 ### D1 migration and Worker deployment
 
