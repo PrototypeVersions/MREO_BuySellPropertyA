@@ -11,6 +11,7 @@
       this.messages = [];
       this.documents = [];
       this.events = [];
+      this.drafts = {};
       this.documentHandler = null;
       this.root.innerHTML = `<div class="thread-tabs" hidden></div><div class="conversation-feed message-list" aria-live="polite"></div><form class="message-form"><textarea aria-label="Message" maxlength="8000" required placeholder="Write a message to the MREO Agent"></textarea><button class="small-button primary" type="submit">Send</button></form>`;
       this.tabs = root.querySelector(".thread-tabs");
@@ -31,7 +32,11 @@
         button.textContent = label;
         button.setAttribute("aria-pressed", String(kind === this.thread));
         button.onclick = () => {
+          if (this.thread === kind) return;
+          const input = this.form.querySelector("textarea");
+          this.drafts[this.thread] = input.value;
           this.thread = kind;
+          input.value = this.drafts[kind] || "";
           this.messages = [];
           this.rendered = false;
           this.render();
@@ -104,12 +109,15 @@
       const input = this.form.querySelector("textarea"), body = input.value.trim(), button = this.form.querySelector("button");
       if (!body) return;
       button.disabled = true;
+      input.disabled = true;
+      this.tabs.querySelectorAll("button").forEach(item => item.disabled = true);
       try {
         await MreoIdentity.request(`/api/v1/transactions/${encodeURIComponent(this.transactionId)}/messages`, {method:"POST", body:JSON.stringify({body, thread:this.thread})});
         input.value = "";
+        this.drafts[this.thread] = "";
         await this.refresh();
       } catch (error) { alert(error.message); }
-      finally { button.disabled = false; }
+      finally { button.disabled = false; input.disabled = false; this.tabs.querySelectorAll("button").forEach(item => item.disabled = false); }
     }
   }
   globalThis.TransactionThread = TransactionThread;

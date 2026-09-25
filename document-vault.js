@@ -12,6 +12,7 @@
       root.innerHTML = `<details class="document-composer"><summary>Attach a document or PDF</summary><form class="upload-form"><label>Choose a transaction document<input type="file" name="file" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.csv,.txt"></label>${agent ? `<label>Who may see it<select name="visibility"><option value="thread">This conversation</option><option value="participants">All transaction participants</option><option value="buyer_agent">Buyer and MREO Agent</option><option value="seller_agent">Seller and MREO Agent</option><option value="agent_provider">Provider and MREO Agent</option><option value="agent_only">MREO Agent only</option></select></label>` : `<input type="hidden" name="visibility" value="thread">`}<p class="upload-note">The file will appear at this point in the conversation, where it can be downloaded, reviewed, or sent for signature.</p><button class="small-button primary" type="submit">Add to conversation</button></form></details>`;
       this.form = root.querySelector("form");
       this.form.onsubmit = event => this.upload(event);
+      timeline.root.addEventListener("mreo:thread-selected", () => this.form.reset());
     }
 
     updateVisibility(data = null) {
@@ -57,7 +58,9 @@
           download.disabled = true;
           const response = await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(download.dataset.download)}/download?version=${download.dataset.version}`);
           const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement("a");
-          link.href = url; link.download = ""; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); download.disabled = false;
+          const document = this.documents.find(item => item.id === download.dataset.download);
+          link.href = url; link.download = document ? (download.dataset.version === "completed" ? "Executed-" + document.filename.replace(/\.[^.]+$/, "") + ".pdf" : document.filename) : "document";
+          link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); download.disabled = false;
         }
         if (sign) {
           sign.disabled = true;

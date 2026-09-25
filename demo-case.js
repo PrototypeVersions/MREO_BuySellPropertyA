@@ -4,7 +4,7 @@ const query=new URLSearchParams(location.search),prefix=namespace(location.pathn
 let storage=null;try{storage=localStorage;}catch{}
 let state=storage&&(!query.has("perspective")||query.has("run"))?loadScenario(storage,prefix,query.get("run")):null;
 if(!state)state=createScenario(query.get("perspective")||"buyer");
-let view=views[query.get("view")]?query.get("view"):views[state.lastView]?state.lastView:"auction",thread=state.perspective==="agent"?"buyer":state.perspective;
+let view=views[query.get("view")]?query.get("view"):views[state.lastView]?state.lastView:"auction",thread=state.perspective==="agent"?(["buyer","seller","provider"].includes(state.selectedThread)?state.selectedThread:"buyer"):state.perspective;
 function href(section){return "demo-case.html?run="+encodeURIComponent(state.id)+"&view="+section;}
 function save(){try{if(!storage)throw Error();saveScenario(storage,prefix,state);$("save-status").textContent="Demo saved in this browser";}catch{$("save-status").textContent="Storage unavailable · progress lasts only on this page";}}
 function button(action,label,extra="",primary=false){return '<button type="button" class="small-button'+(primary?' primary':'')+'" data-action="'+action+'" '+extra+'>'+label+'</button>';}
@@ -52,7 +52,7 @@ function guide() {
   $("case-events").innerHTML=state.events.filter(event=>!event.threadRole||state.perspective==="agent"||event.threadRole===state.perspective).map(event=>'<li>'+new Date(event.at).toLocaleTimeString()+' · '+esc(event.summary)+'</li>').join("");
 }
 function render(persist=true) {
-  if(persist){state.lastView=view;save();}history.replaceState(null,"",href(view));
+  if(persist){state.lastView=view;state.selectedThread=thread;save();}history.replaceState(null,"",href(view));
   $("case-title").textContent=state.property.title;
   $("case-perspective").textContent="Viewing as "+ROLES[state.perspective]+" · Fictional property story · "+state.transaction.status;
   $("case-tabs").innerHTML=Object.entries(views).map(([id,label])=>'<a href="'+href(id)+'" '+(view===id?'aria-current="page"':"")+'>'+label+'</a>').join("");
