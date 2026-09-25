@@ -58,8 +58,8 @@
           download.disabled = true;
           const response = await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(download.dataset.download)}/download?version=${download.dataset.version}`);
           const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement("a");
-          const document = this.documents.find(item => item.id === download.dataset.download);
-          link.href = url; link.download = document ? (download.dataset.version === "completed" ? "Executed-" + document.filename.replace(/\.[^.]+$/, "") + ".pdf" : document.filename) : "document";
+          const record = this.documents.find(item => item.id === download.dataset.download);
+          link.href = url; link.download = record ? (download.dataset.version === "completed" ? "Executed-" + record.filename.replace(/\.[^.]+$/, "") + ".pdf" : record.filename) : "document";
           link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); download.disabled = false;
         }
         if (sign) {

@@ -86,6 +86,7 @@ test("connected Messages Files and Coordination share records without mixing par
    if(path.endsWith("/tasks"))return {tasks:[]};
    if(path.endsWith("/services"))return {services:[]};
    if(path.endsWith("/events"))return {events:[{entity_id:"seller-file",entity_type:"document",event_type:"esign.complete",created_at:3000,summary:"Seller signing update"}]};
+   if(path.includes("/download?"))return new Response("%PDF-1.4 sample",{headers:{"Content-Type":"application/pdf"}});
    if(path.endsWith("/documents")){if(options.method==="POST"){const form=options.body;docs.push({id:"new-file",filename:form.get("file").name,visibility:form.get("visibility"),status:"available",created_at:4000,content_type:"application/pdf",kind:"general",size_bytes:10});}return {documents:docs};}
    if(path.includes("/messages")){const seller=path.includes("seller_agent");return {messages:[{id:"m1",author_role:seller?"seller":"buyer",body:seller?"Seller private message":"Buyer private message",created_at:2000}]};}
    throw Error("Live connection omitted in browser test");
@@ -102,6 +103,9 @@ test("connected Messages Files and Coordination share records without mixing par
  await expect(page.locator('input[type="file"]')).toHaveValue("");
  await expect(feed).toContainText("Seller private message");await expect(feed).not.toContainText("Buyer private");
  await expect(feed).toContainText("Seller signing update");
+ const connectedDownload=page.waitForEvent("download");
+ await feed.locator('[data-download="seller-file"]').click();
+ expect((await connectedDownload).suggestedFilename()).toBe("Seller private.pdf");
  await page.locator('input[type="file"]').setInputFiles({name:"New seller document.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.4 sample")});
  await page.getByRole("button",{name:"Add to conversation"}).click();
  await expect(feed).toContainText("New seller document.pdf");
