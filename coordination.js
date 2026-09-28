@@ -2,7 +2,8 @@
   "use strict";
 
   const params = new URLSearchParams(location.search);
-  const workspaceTransaction = params.get("workspaceTransaction") || "";
+  let workspaceTransaction = params.get("workspaceTransaction") || "";
+  const auctionEntry = params.get("entry") === "auction" || (params.get("demo") === "1" && params.has("auction") && ["won","complete"].includes(params.get("stage")) && params.has("perspective"));
   const S = globalThis.MreoService;
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
@@ -187,6 +188,7 @@
   function query(extra = {}) {
     const out = new URLSearchParams();
     if (workspaceTransaction) out.set("workspaceTransaction", workspaceTransaction);
+    if (auctionEntry) out.set("entry", "auction");
     if (context.kind) out.set("type", context.kind);
     if (context.auction) out.set("auction", context.auction);
     if (context.address) out.set("address", context.address);
@@ -199,6 +201,46 @@
     Object.entries(extra).forEach(([key, value]) => value !== undefined && value !== null && value !== "" && out.set(key, value));
     if (workspaceTransaction && extra.service) out.set("transaction", workspaceTransaction);
     return out.toString();
+  }
+
+  function showAuctionEntry() {
+    if (!auctionEntry) return;
+    const toolbar = $("auction-entry-toolbar"), link = $("auction-entry-message-link");
+    if (toolbar) {
+      document.querySelector(".coordination-hero")?.setAttribute("hidden", "");
+      document.querySelector(".demo-control-strip")?.setAttribute("hidden", "");
+      toolbar.hidden = false;
+      if (link) {
+        link.href = workspaceTransaction
+          ? `coordination.html?transaction=${encodeURIComponent(workspaceTransaction)}&section=messages`
+          : "my-properties.html";
+        link.textContent = workspaceTransaction ? "Chat with an MREO agent →" : "Open My properties to chat →";
+      }
+    }
+    params.set("entry", "auction");
+    params.delete("perspective");
+    history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+  }
+
+  async function resolveAuctionWorkspace() {
+    if (!auctionEntry || workspaceTransaction || !globalThis.MreoIdentity?.connected()) return;
+    try {
+      await MreoIdentity.init();
+      if (!await MreoIdentity.currentUser()) return;
+      const {transactions = []} = await MreoIdentity.request("/api/v1/transactions");
+      const normalize = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const auctionMatches = transactions.filter(item => item.property?.relatedAuctionId === context.auction || item.property?.id === context.auction || item.source_auction_id === context.auction);
+      const titleMatches = transactions.filter(item => normalize(item.title) === normalize(context.label));
+      const candidates = auctionMatches.length ? auctionMatches : titleMatches;
+      const requestedRole = params.get("role");
+      const match = candidates.find(item => item.viewer_role === requestedRole) || candidates[0];
+      if (!match?.id) return;
+      workspaceTransaction = match.id;
+      params.set("workspaceTransaction", workspaceTransaction);
+      history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+      showAuctionEntry();
+      renderAll();
+    } catch { /* The coordination demonstration remains available if account lookup is unavailable. */ }
   }
 
   const stateKey = `mreo:coordination:v3:${context.key}`;
@@ -1020,6 +1062,9 @@ Property: ${context.label}
     wireOnce();
   }
 
+  showAuctionEntry();
   renderAll();
+  if (document.readyState === "loading") addEventListener("DOMContentLoaded", resolveAuctionWorkspace, {once:true});
+  else setTimeout(resolveAuctionWorkspace, 0);
   setInterval(autoProgress, 4000);
 })();
