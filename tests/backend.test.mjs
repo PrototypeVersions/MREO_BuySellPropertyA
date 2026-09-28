@@ -50,6 +50,7 @@ test("missing Stripe grants an explicit test credit while live payments are disa
 });
 test("paid participants receive a signed intake workspace before an auction closes",async()=>{
  const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),buyer=await register(ex,"buyer");
+ assert.equal(buyer.email,"buyer@example.com");assert.equal(buyer.submission.title,"Test listing");assert.match(buyer.submission.draftId,/^[0-9a-f-]+$/i);
  await ex.fetch(request("/checkout","POST",{testBypass:true},buyer.token));
  const result=await (await ex.fetch(request("/activate","POST",{},buyer.token))).json();
  assert.equal(result.auctionId,null);assert.match(result.handoffToken,/\./);
