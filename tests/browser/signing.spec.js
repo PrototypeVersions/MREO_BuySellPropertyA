@@ -16,7 +16,7 @@ async function connected(page,{error=false,canSign=true}={}) {
       if(path.endsWith("/signing-session")){signingCalls.push("session");${error?'throw Error("Provider restricted to private-owner@example.invalid");':'return {url:"https://www.signwell.com/docs/private-test-session",testMode:true};'}}
       if(path.endsWith("/signing-status")){signingCalls.push("status");return {complete:providerComplete,signerStatus:providerComplete?"signed":"pending"};}
       throw Error("Unused test route");
-    };window.open=()=>{throw Error("Signing must not use a popup");};`}));
+    }};window.open=()=>{throw Error("Signing must not use a popup");};`}));
   await page.route("https://static.signwell.com/assets/embedded.js",route=>route.fulfill({contentType:"application/javascript",body:`
     window.SignWellEmbed=class {
       constructor(options){window.signwellOptions=options;}
