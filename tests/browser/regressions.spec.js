@@ -18,7 +18,7 @@ test("My MREO gives Clerk a valid return page for sign-out",async({page})=>{
     const path=new URL(route.request().url()).pathname;
     if(path==="/api/v1/config")return route.fulfill({json:{connected:true,authConfigured:true,clerkPublishableKey:"pk_test_Y2xlcmsudGVzdCQ="}});
     if(path==="/api/v1/me")return route.fulfill({json:{id:"user",displayName:"Account User"}});
-    if(path==="/api/v1/transactions")return route.fulfill({json:{transactions:[]}});
+    if(path==="/api/v1/transactions")return route.fulfill({json:{transactions:[{id:"tx-doc",title:"Document property",viewer_role:"buyer",kind:"property",status:"active",updated_at:Date.UTC(2026,8,28)}]}});
     return route.fulfill({status:404,json:{error:"Not found"}});
   });
   await page.route("https://clerk.test/**",route=>route.fulfill({contentType:"application/javascript",body:`
@@ -31,6 +31,10 @@ test("My MREO gives Clerk a valid return page for sign-out",async({page})=>{
   const accountSections=page.getByRole("navigation",{name:"My MREO sections"});
   await expect(accountSections.getByRole("button")).toHaveText(["Active workspaces","Action needed","Messages","Documents","Past workspaces"]);
   await expect(accountSections.getByRole("link")).toHaveCount(0);
+  await accountSections.getByRole("button",{name:"Messages"}).click();
+  await expect(page.locator(".transaction-row")).toHaveAttribute("href","coordination.html?transaction=tx-doc&section=messages");
+  await accountSections.getByRole("button",{name:"Documents"}).click();
+  await expect(page.locator(".transaction-row")).toHaveAttribute("href","coordination.html?transaction=tx-doc&section=files");
   const current=page.url();
   expect(await page.evaluate(()=>window.clerkLoadOptions.afterSignOutUrl)).toBe(current);
   expect(await page.evaluate(()=>window.userButtonOptions.afterSignOutUrl)).toBe(current);
