@@ -21,6 +21,8 @@
         document.getElementById("auction-content").hidden=true;
       }
       document.querySelector(".page-heading").hidden=true;
+      const back=document.querySelector(".page-shell > .back-link");
+      if(back){back.href="my-properties.html";back.textContent="← My properties";}
       document.getElementById("auction-select").addEventListener("change",()=>{root.hidden=true;});
     }catch(error){root.innerHTML='<p class="case-hint">'+esc(error.message)+' <a href="profile.html">Open My MREO</a></p>';}
   })();

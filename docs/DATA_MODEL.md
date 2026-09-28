@@ -9,6 +9,14 @@ The four tabs describe four views of a property case. They do not each create a 
 | Coordination | Service requests and work status | Property, transaction, report documents |
 | Files | A searchable-by-eye document index | The same documents shown in Messages |
 
+## My properties
+
+`my-properties.html` is the property index linked from the main menu. It reads the signed-in account's existing `/api/v1/transactions` response and the current site's saved guided demonstrations. It does not create a new transaction, track passive browsing, or change any saved run while listing it.
+
+Account entries are grouped by their property ID when available, otherwise by transaction kind and normalized property title. Duplicate participant roles for the same transaction become one workspace link. Guided runs use their normalized property title to group repeated perspectives for the same sample address. Account and demonstration groups always remain separate. Each group opens the most recently updated workspace; other saved runs or transactions remain accessible in its expandable list. A demonstration reopens its saved tab and original run ID.
+
+Account records stay in memory and are cleared on sign-out or account changes. Only the existing guided-run snapshots remain in browser storage. This index does not add permissions or expose new backend endpoints. **Find a property**, **Start a demonstration**, and the secondary portfolio and service partner links keep the removed menu destinations reachable.
+
 ## Guided public demonstration
 
 `experience.html` opens `demo-case.html`. No account is required. The new demonstration imports only `demo-store.js` and does not call the connected account, payment, signing, or coordination APIs.
@@ -50,7 +58,7 @@ The frontend suppresses document activity for documents outside the visible file
 
 ## Existing illustrative provider pages
 
-The older service walkthroughs remain available under Coordinate and from **Explore service pathways**. They use their existing browser state, separate from guided-run snapshots. They do not synchronize with a new guided run. Links from a connected workspace to these examples are explicitly labeled as illustrative and do not dispatch providers or change the connected transaction.
+The older service walkthroughs remain available from **Service partner demonstration** on My properties and from **Explore service pathways**. They use their existing browser state, separate from guided-run snapshots. They do not synchronize with a new guided run. Links from a connected workspace to these examples are explicitly labeled as illustrative and do not dispatch providers or change the connected transaction.
 
 ## Verification
 
