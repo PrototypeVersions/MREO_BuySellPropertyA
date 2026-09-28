@@ -109,10 +109,12 @@ test("workspace Auction and Coordination tabs show current summaries and link to
   if(path==="/auctions/auction-current")return route.fulfill({json:{auction:{id:"auction-current",title:"2605 Preston Meadow Court",status:"active",endsAt:Date.now()+86400000,bidCount:2,bids:[{buyerId:"exchange-buyer",amount:551000}],viewerOutcome:"submitted"},account:{id:"exchange-buyer",role:"buyer"},isSeller:false,serverNow:Date.now()}});
   return route.fulfill({status:404,json:{error:"Not found"}});
  });
+ await page.addInitScript(()=>localStorage.setItem("mreo:v3:/",JSON.stringify({accounts:{local:{id:"local",role:"buyer"}},auctions:{"auction-current":{id:"auction-current",title:"Stale browser auction",sellerId:"seller",kind:"property",minimum:1,reserve:1001,fee:1000,startsAt:1,endsAt:2,days:1,bids:[],status:"closed",demo:true,seeded:3,closedAt:2,winnerId:null,saleCompleted:false}}})));
  await page.goto("/coordination.html?transaction=tx-current&section=auction");
  await expect(page.getByRole("heading",{name:"Linked auction"})).toBeVisible();
  await expect(page.locator("#auction-summary-state")).toHaveText("Open");
- await expect(page.locator("#auction-summary-activity")).toHaveText("Bid submitted");
+ await expect(page.locator("#auction-summary-activity-label")).toHaveText("Your bids");
+ await expect(page.locator("#auction-summary-activity")).toHaveText("1 bid submitted");
  await expect(page.locator("#auction-summary-timing")).toContainText("Closes");
  await expect(page.getByRole("link",{name:"Open full Auction page →"})).toHaveAttribute("href",/auction\.html\?transaction=tx-current&id=auction-current/);
  await page.getByRole("link",{name:"Coordination",exact:true}).click();
@@ -120,4 +122,51 @@ test("workspace Auction and Coordination tabs show current summaries and link to
  await expect(page.locator("#coordination-service-count")).toHaveText("1");
  await expect(page.locator("#service-list")).toContainText("Inspection");
  await expect(page.getByRole("textbox",{name:"Message",exact:true})).toBeHidden();
+});
+
+test("workspace demo auction summary counts the buyer's real bid and shows win or loss",async({page})=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"clerk-user"}),liveUrl:path=>"wss://api.mreo.test"+path,
+   request:async(path)=>{
+    if(path==="/api/v1/transactions/tx-demo-result")return {id:"tx-demo-result",title:"9014 Silver Creek Way, Frisco, TX 75035",kind:"property",status:"active",property:{id:"demo-frisco",relatedAuctionId:"demo-frisco",demo:true},viewerRole:"agent",participants:[]};
+    if(path.endsWith("/tasks"))return {tasks:[]};
+    if(path.endsWith("/events"))return {events:[]};
+    if(path.endsWith("/services"))return {services:[]};
+    if(path.endsWith("/documents"))return {documents:[]};
+    if(path.includes("/messages"))return {thread:{kind:"buyer_agent"},messages:[]};
+    if(path.endsWith("/live-ticket"))throw Error("Live connection omitted in browser test");
+    throw Error("Unexpected identity request: "+path);
+   }};` }));
+ await page.route("https://api.mreo.test/**",route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true}});
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.addInitScript(()=>{
+  const at=Date.now()-60000;
+  localStorage.setItem("mreo:v3:/",JSON.stringify({accounts:{
+   "test-buyer-a":{id:"test-buyer-a",name:"Test Buyer A",role:"buyer",creditCents:100,test:true},
+   "test-buyer-b":{id:"test-buyer-b",name:"Test Buyer B",role:"buyer",creditCents:100,test:true},
+   "test-buyer-c":{id:"test-buyer-c",name:"Test Buyer C",role:"buyer",creditCents:100,test:true},
+   "test-seller":{id:"test-seller",name:"Test Seller",role:"seller",creditCents:100,test:true}
+  },auctions:{"demo-frisco":{id:"demo-frisco",title:"9014 Silver Creek Way, Frisco, TX 75035",sellerId:"test-seller",kind:"property",portfolio:[],portfolioCount:0,minimum:688000,reserve:689000,fee:1000,startsAt:at-60000,endsAt:at,days:1,status:"closed",demo:true,seeded:3,closedAt:at,winnerId:"test-buyer-a",saleCompleted:false,bids:[
+   {id:"demo-frisco-seed-0",buyerId:"test-buyer-a",label:"Test Buyer A",amount:620100,at:at-50000},
+   {id:"demo-frisco-seed-1",buyerId:"test-buyer-b",label:"Test Buyer B",amount:675300,at:at-40000},
+   {id:"demo-frisco-seed-2",buyerId:"test-buyer-c",label:"Test Buyer C",amount:716600,at:at-30000},
+   {id:"manual-bid",buyerId:"test-buyer-a",label:"Test Buyer A",amount:725000,at:at-10000}
+  ]}}}));
+ });
+ await page.goto("/coordination.html?transaction=tx-demo-result&section=auction");
+ await expect(page.locator("#auction-summary-state")).toHaveText("Closed");
+ await expect(page.locator("#auction-summary-activity-label")).toHaveText("Your bids");
+ await expect(page.locator("#auction-summary-activity")).toHaveText("1 bid submitted");
+ await expect(page.locator("#auction-summary-timing")).toHaveText("You won");
+ await page.evaluate(()=>{
+  const key="mreo:v3:/",state=JSON.parse(localStorage.getItem(key));
+  state.auctions["demo-frisco"].winnerId="test-buyer-c";
+  localStorage.setItem(key,JSON.stringify(state));
+  dispatchEvent(new Event("mreo:workspace-changed"));
+ });
+ await expect(page.locator("#auction-summary-timing")).toHaveText("You did not win");
 });
