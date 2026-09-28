@@ -23,12 +23,13 @@ test("My MREO gives Clerk a valid return page for sign-out",async({page})=>{
   });
   await page.route("https://clerk.test/**",route=>route.fulfill({contentType:"application/javascript",body:`
     window.__internal_ClerkUICtor=class {};
-    window.Clerk={isSignedIn:true,user:{id:"user"},session:{getToken:async()=>"token"},load:async()=>{},
+    window.Clerk={isSignedIn:true,user:{id:"user"},session:{getToken:async()=>"token"},load:async options=>{window.clerkLoadOptions=options;},
       mountUserButton:(element,options)=>{window.userButtonOptions=options;element.innerHTML="<button>Sign out</button>";},
       signOut:async options=>{window.directSignOutOptions=options;}};` }));
   await page.goto("/profile.html?from=account");
   await expect(page.locator("#profile-app")).toBeVisible();
   const current=page.url();
+  expect(await page.evaluate(()=>window.clerkLoadOptions.afterSignOutUrl)).toBe(current);
   expect(await page.evaluate(()=>window.userButtonOptions.afterSignOutUrl)).toBe(current);
   await page.evaluate(()=>MreoIdentity.signOut());
   expect(await page.evaluate(()=>window.directSignOutOptions.redirectUrl)).toBe(current);
