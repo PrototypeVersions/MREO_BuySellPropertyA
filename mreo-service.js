@@ -12,6 +12,7 @@ const root=location.pathname.slice(0,location.pathname.lastIndexOf("/")+1);
 const key="mreo:v3:"+root;
 const visibleAuction=a=>!!a&&!a.hidden&&a.id!=="video-property";
 const sessionKey=(role,useDemo=demo)=>key+":"+(useDemo?"demo":"connected:"+config.apiBase)+":"+role;
+const summaryBuyerKey=id=>key+":summary-buyer:"+id;
 const currentRole=()=>sessionStorage.getItem(key+":role")||"buyer";
 const setRole=role=>sessionStorage.setItem(key+":role",role);
 function read(){const s=localStorage.getItem(key);if(!s)return {accounts:{},auctions:{}};try{const d=JSON.parse(s);if(!d.accounts||!d.auctions)throw Error();return d;}catch{throw Error("Your saved test data could not be read. Use Reset test data on the auction page.");}}
@@ -23,6 +24,15 @@ function demoAccount(state,auction,role,actor){
  const id=actor==="test-seller"?auction.sellerId:actor||session(role,true)?.id;
  return state.accounts[id]||null;
 }
+function summaryBuyer(state,auction){
+ const saved=sessionStorage.getItem(summaryBuyerKey(auction.id));
+ if(saved&&state.accounts[saved])return saved;
+ const manual=[...(auction.bids||[])].filter(bid=>!String(bid.id||"").startsWith(auction.id+"-seed-")).sort((a,b)=>Number(b.at||0)-Number(a.at||0));
+ const sessionBuyer=session("buyer",true)?.id;
+ const inferred=(sessionBuyer&&manual.some(bid=>bid.buyerId===sessionBuyer)?sessionBuyer:manual[0]?.buyerId)||sessionBuyer||"";
+ if(inferred&&state.accounts[inferred])sessionStorage.setItem(summaryBuyerKey(auction.id),inferred);
+ return inferred;
+}
 async function clear(){
  localStorage.removeItem(key);
  for(let i=localStorage.length-1;i>=0;i--){
@@ -30,6 +40,10 @@ async function clear(){
   if(storageKey?.startsWith("mreo:coordination:"))localStorage.removeItem(storageKey);
  }
  for(const role of ["buyer","seller"])sessionStorage.removeItem(sessionKey(role));
+ for(let i=sessionStorage.length-1;i>=0;i--){
+  const storageKey=sessionStorage.key(i);
+  if(storageKey?.startsWith(key+":summary-buyer:"))sessionStorage.removeItem(storageKey);
+ }
  sessionStorage.removeItem(key+":role");
  if(globalThis.indexedDB){
   await new Promise(resolve=>{
@@ -168,13 +182,14 @@ async function auction(id,view="buyer",actor){
  const account=demoAccount(s,a,view,actor);
  const now=Date.now();return {auction:C.auctionForViewer(a,account?.id,view,now),account:account||null,isSeller:account?.id===a.sellerId,serverNow:now};
 }
-async function auctionSummary(id,view="buyer"){
+async function auctionSummary(id,view="buyer",{allowDemo=demo}={}){
  if(!id)return null;
- try{
+ if(allowDemo)try{
   const s=read(),a=s.auctions[id];
   if(visibleAuction(a)){
    C.seedDemo(a);write(s);
-   const account=demoAccount(s,a,view),now=Date.now();
+   const actor=view==="buyer"?summaryBuyer(s,a):undefined;
+   const account=demoAccount(s,a,view,actor),now=Date.now();
    return {auction:C.auctionForViewer(a,account?.id,view,now),account:account||null,isSeller:account?.id===a.sellerId,serverNow:now};
   }
  }catch(error){if(demo)throw error;}
@@ -184,10 +199,10 @@ async function auctionSummary(id,view="buyer"){
 async function bid(id,amount,actor){
  if(!demo)return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount})},"buyer");
  const s=read(),a=s.auctions[id];if(!visibleAuction(a))throw Error("Auction not found.");const account=demoAccount(s,a,"buyer",actor);C.seedDemo(a);
- C.placeBid(a,{amount,buyerId:account?.id,label:account?.name,paid:account?.creditCents>=100});write(s);return {ok:true};
+ C.placeBid(a,{amount,buyerId:account?.id,label:account?.name,paid:account?.creditCents>=100});if(account?.id)sessionStorage.setItem(summaryBuyerKey(id),account.id);write(s);return {ok:true};
 }
 async function finish(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");C.seedDemo(a,a.endsAt-1);const now=Date.now();for(const b of a.bids)b.at=Math.min(b.at,now);a.endsAt=now;C.closeAuction(a);write(s);}
-async function restart(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);write(s);}
+async function restart(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);sessionStorage.removeItem(summaryBuyerKey(id));write(s);}
 async function completeSale(id){if(!demo)throw Error("Only test closing can be simulated here.");const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);}
 async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}
 globalThis.MreoService={demo,key,init,status:()=>connectionStatus,register,me,checkout,confirm,activate,list,auction,auctionSummary,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
