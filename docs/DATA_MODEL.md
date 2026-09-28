@@ -38,7 +38,7 @@ The browser stores a JSON snapshot under `mreo:guided-demo:v1:<site-directory>ru
 
 A document card in Messages and a card in Files point to the same document. A signing action updates that document and appends a thread event. Completing a service references its report's document ID. None of these actions submits or changes an auction bid.
 
-The demo uses fictional PDFs generated on demand; no uploaded file bytes are saved. Replies and provider actions are scripted examples. Signing has no legal effect and sends no email. Browser storage is not an authenticated vault: anyone using that browser profile can inspect the synthetic records, including other demo roles. Clearing site data removes this progress. When storage is unavailable, the page explicitly reports that progress is temporary.
+The demo uses fictional PDFs generated on demand; no uploaded file bytes are saved. Replies and provider actions are scripted examples. Sample signing requires a typed name and an explicit demonstration confirmation, saved with the signature's timestamp and document ID. Older button-only simulations can add a sample signature without losing their run. Signing here has no legal effect and sends no email. Browser storage is not an authenticated vault: anyone using that browser profile can inspect the synthetic records, including other demo roles. Use fictional sample names. Clearing site data removes this progress. When storage is unavailable, the page explicitly reports that progress is temporary.
 
 ## Connected accounts
 
@@ -54,7 +54,17 @@ Connected uploads now default to the selected participant conversation. Authoriz
 
 Access follows the current server model: transaction buyers see the buyer thread, sellers see the seller thread, and providers see the provider thread. Authorized agent/admin accounts have broader staff access. Provider access is currently at the transaction-role level, not isolated per provider company. Cloudflare/account administrators and the services processing the records also have their respective operational access. This is not end-to-end encrypted messaging.
 
-The frontend suppresses document activity for documents outside the visible file set. Before using confidential customer records, the backend's broader activity feed also needs server-side event filtering: its current summaries can include another participant's document filename or task title. Per-provider assignment restrictions and retention/deletion policies likewise need a separate production hardening pass. UI filtering alone is not an access-control boundary.
+The backend filters activity for documents, tasks, and messages by the viewer's access. Audit metadata, including legacy signer emails, is omitted from activity responses; email addresses in generated activity summaries are redacted. Provider errors are replaced with safe application messages, with an additional email guard at the API and client error boundary. Non-staff uploads are scoped to their own participant conversation. Per-provider assignment restrictions and retention/deletion policies still need a separate production hardening pass.
+
+## Connected signing
+
+**Review & Sign** opens SignWell's supported embedded signing UI. It does not rely on an asynchronously opened browser popup. A signing request adds a required signature page and binds each signer to an active transaction participant's user ID. Signers who also hold staff roles retain access to their own request; staff status alone never grants another person's signing URL. The document list includes permission flags and the viewer's own signing status, without provider IDs or recipient email lists.
+
+The signing window's completion event asks the backend to verify the provider's current record. A document is marked complete only when SignWell confirms completion and a PDF is stored in private R2 storage. The signature task cannot be manually marked complete. **Check signing status** handles delayed callbacks or a return after closing the window. Webhooks also reconcile against the provider and notify the transaction room. Request creation and status checks never expose raw provider errors.
+
+SignWell remains in test mode. Test signatures are not legally binding. Embedded request notifications and automatic reminders are disabled; signers use their own MREO workspace. Account and recipient emails remain in the private database and with the signing provider. A signature provider's signing record or audit page may contain sender and signer identity details; a completed PDF is accessible only under that document's sharing permissions. These protections do not remove identity information from an authorized signed record.
+
+`update-cloudflare.yml` updates backend code after changes merge to main, preserving existing secrets and webhook registration. It checks the live configuration and creates/removes one fictional SignWell test document to verify provider creation and recipient-session availability. It sends no notifications, collects no signature, and logs no email address or signing URL.
 
 ## Existing illustrative provider pages
 

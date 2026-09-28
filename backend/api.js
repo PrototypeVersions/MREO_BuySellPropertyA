@@ -6,7 +6,7 @@ import {addParticipant, createTransaction, getTransaction, listTransactions, par
 import {correctMessage, createMessage, listMessages} from "./messages.js";
 import {createTask, listTasks, updateTask} from "./tasks.js";
 import {downloadDocument, listDocuments, uploadDocument} from "./documents.js";
-import {createSignatureRequest, signingSession, signwellWebhook} from "./esign.js";
+import {createSignatureRequest, signingSession, signatureStatus, signwellWebhook} from "./esign.js";
 import {createRoomTicket, notifyRoom} from "./rooms.js";
 import {createServiceRequest, listServiceRequests, updateServiceRequest} from "./services.js";
 
@@ -15,11 +15,15 @@ const match = (path, pattern) => path.match(pattern);
 export async function apiFetch(request, env) {
   try {
     const url = new URL(request.url), path = url.pathname, method = request.method;
-    if (path === "/webhooks/signwell" && method === "POST") return json(await signwellWebhook(request, env));
+    if (path === "/webhooks/signwell" && method === "POST") {
+      const result=await signwellWebhook(request,env);
+      if(result.transactionId)await notifyRoom(env,result.transactionId,{type:"esign.updated"});
+      return json({ok:true});
+    }
     if (path === "/api/v1/config" && method === "GET") return json({
       connected:!!env.DB, authConfigured:!!env.CLERK_PUBLISHABLE_KEY,
       clerkPublishableKey:env.CLERK_PUBLISHABLE_KEY || "", signwellConfigured:!!env.SIGNWELL_API_KEY,
-      signwellTestMode:env.SIGNWELL_TEST_MODE !== "false", realtimeConfigured:!!env.ROOM_SIGNING_SECRET
+      signwellTestMode:env.SIGNWELL_TEST_MODE !== "false", realtimeConfigured:!!env.ROOM_SIGNING_SECRET, signingFlow:"embedded-v2"
     });
     let found;
     if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/live$/)) && request.headers.get("Upgrade") === "websocket") {
@@ -71,11 +75,15 @@ export async function apiFetch(request, env) {
       if (method === "GET") return json({documents:await listDocuments(env, user, found[1])});
       if (method === "POST") { const result = await uploadDocument(request, env, user, found[1]); await notifyRoom(env, found[1], {type:"document.uploaded", id:result.id}); return json(result, 201); }
     }
-    if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/documents\/([^/]+)\/download$/)) && method === "GET") return downloadDocument(request, env, user, found[1], found[2]);
+    if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/documents\/([^/]+)\/download$/)) && method === "GET") return await downloadDocument(request, env, user, found[1], found[2]);
     if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/documents\/([^/]+)\/signatures$/)) && method === "POST") {
       const result = await createSignatureRequest(request, env, user, found[1], found[2]); await notifyRoom(env, found[1], {type:"esign.sent", documentId:found[2]}); return json(result, 201);
     }
     if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/documents\/([^/]+)\/signing-session$/)) && method === "POST") return json(await signingSession(env, user, found[1], found[2]));
+    if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/documents\/([^/]+)\/signing-status$/)) && method === "POST") {
+      const result=await signatureStatus(env,user,found[1],found[2]);
+      await notifyRoom(env,found[1],{type:"esign.updated",documentId:found[2]});return json(result);
+    }
     if ((found = match(path, /^\/api\/v1\/transactions\/([^/]+)\/services$/))) {
       if (method === "GET") return json({services:await listServiceRequests(env, user, found[1])});
       if (method === "POST") { const result=await createServiceRequest(request, env, user, found[1]); await notifyRoom(env, found[1], {type:"service.requested",id:result.id}); return json(result,201); }

@@ -1,4 +1,4 @@
-import {ROLES,SERVICES,namespace,createScenario,loadScenario,saveScenario,act,conversation,visibleDocuments} from "./demo-store.js";
+import {ROLES,SERVICES,namespace,createScenario,loadScenario,saveScenario,act,conversation,visibleDocuments} from "./demo-store.js?v=20260928-signing";
 const $=id=>document.getElementById(id),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const query=new URLSearchParams(location.search),prefix=namespace(location.pathname),views={auction:"Auction",messages:"Messages",coordination:"Coordination",files:"Files"};
 let storage=null;try{storage=localStorage;}catch{}
@@ -10,7 +10,8 @@ function save(){try{if(!storage)throw Error();saveScenario(storage,prefix,state)
 function button(action,label,extra="",primary=false){return '<button type="button" class="small-button'+(primary?' primary':'')+'" data-action="'+action+'" '+extra+'>'+label+'</button>';}
 function docCard(doc) {
   if(!doc)return "";
-  const action=doc.status==="available"?button("requestSignature","Request sample signature",'data-document="'+esc(doc.id)+'"'):doc.status==="signature_pending"?button("review","Review &amp; simulate signing",'data-document="'+esc(doc.id)+'"',true):'<span class="attention-chip">Simulated signing complete</span>';
+  const signature=state.signatureRequests.find(item=>item.documentId===doc.id);
+  const action=doc.status==="available"?button("requestSignature","Request sample signature",'data-document="'+esc(doc.id)+'"'):doc.status==="signature_pending" || (signature && !signature.signatureName)?button("review","Review &amp; sign sample",'data-document="'+esc(doc.id)+'"',true):'<span class="attention-chip">Sample signature saved</span>';
   return '<div class="case-file" data-file="'+esc(doc.id)+'"><small>SAMPLE PDF · version '+doc.version+'</small><strong>'+esc(doc.filename)+'</strong><small>'+esc(doc.status.replaceAll("_"," "))+' · Shared with '+esc(doc.sharedWith.map(role=>ROLES[role]).join(", "))+' and MREO</small><div class="document-actions">'+button("review","Preview PDF",'data-document="'+esc(doc.id)+'"')+button("download","Download sample",'data-document="'+esc(doc.id)+'"')+action+'</div></div>';
 }
 function auctionView() {
@@ -63,13 +64,19 @@ function perform(type,data={}){try{$("demo-error").hidden=true;act(state,type,{.
 function preview(id) {
   const doc=visibleDocuments(state).find(doc=>doc.id===id);if(!doc)return;
   $("review-title").textContent=doc.filename;
-  $("review-actions").innerHTML=button("download","Download sample PDF",'data-document="'+id+'"')+(doc.status==="signature_pending"?button("sign","Simulate my signature",'data-document="'+id+'"',true):"");
+  const signature=state.signatureRequests.find(item=>item.documentId===id);
+  const needsSignature=signature && !signature.signatureName;
+  $("review-actions").innerHTML=button("download","Download sample PDF",'data-document="'+id+'"')+(needsSignature?'<form id="demo-signature" class="case-form sample-signature-form" data-document="'+esc(id)+'"><label>Sample signer name<input name="signatureName" type="text" maxlength="120" autocomplete="off" placeholder="For example, Alex Example" required></label><div id="sample-signature-preview" class="sample-signature-preview" aria-hidden="true">Your sample signature</div><label class="sample-signature-consent"><input type="checkbox" name="consent" required> I am adding a sample signature for this demonstration only.</label><p id="sample-signature-error" role="alert" hidden></p><button class="small-button primary" type="submit">Apply sample signature</button></form>':signature?.signatureName?'<div class="sample-signature-record"><p>Sample signature</p><div class="sample-signature-preview">'+esc(signature.signatureName)+'</div><small>Saved '+new Date(signature.completedAt).toLocaleString()+' · Demonstration only</small></div>':"");
+  const nameInput=$("demo-signature")?.elements.signatureName;
+  if(nameInput)nameInput.oninput=()=>{$("sample-signature-preview").textContent=nameInput.value.trim()||"Your sample signature";};
   $("document-review").showModal();
 }
-// A generated sample PDF; contains no uploaded file, real contract, or signature.
+// A generated sample PDF. A typed sample signature never becomes a legal execution.
 function download(id) {
   const doc=visibleDocuments(state).find(doc=>doc.id===id);if(!doc)return;
-  const content="BT /F1 18 Tf 50 740 Td (MREO - DEMONSTRATION COPY) Tj 0 -35 Td /F1 12 Tf (Sample property document. Not a legal agreement.) Tj 0 -24 Td (No real signature or payment has been collected.) Tj ET";
+  const signature=state.signatureRequests.find(item=>item.documentId===id && item.signatureName);
+  const pdfText=value=>String(value).normalize("NFKD").replace(/[^\x20-\x7e]/g,"").replace(/[\\()]/g,"\\$&");
+  const content="BT /F1 18 Tf 50 740 Td (MREO - DEMONSTRATION COPY) Tj 0 -35 Td /F1 12 Tf (Sample property document. Not a legal agreement.) Tj 0 -24 Td (No legally binding signature or payment is collected.) Tj"+(signature?" 0 -40 Td (Sample signature: "+pdfText(signature.signatureName)+") Tj 0 -24 Td (Recorded: "+pdfText(new Date(signature.completedAt).toISOString())+") Tj":"")+" ET";
   const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>","<< /Length "+content.length+" >>\nstream\n"+content+"\nendstream"];
   let pdf="%PDF-1.4\n",offsets=[0];objects.forEach((object,i)=>{offsets.push(pdf.length);pdf+=(i+1)+" 0 obj\n"+object+"\nendobj\n";});
   const xref=pdf.length;pdf+="xref\n0 6\n0000000000 65535 f \n"+offsets.slice(1).map(offset=>String(offset).padStart(10,"0")+" 00000 n \n").join("")+"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF";
@@ -81,10 +88,16 @@ document.addEventListener("click",event=>{
   const control=event.target.closest("[data-action]");if(!control)return;
   const type=control.dataset.action,id=control.dataset.document;
   if(type==="review"){preview(id);return;}if(type==="download"){download(id);return;}
-  if(type==="sign")$("document-review").close();
+  if(type==="sign")return;
   perform(type,{documentId:id,serviceId:control.dataset.serviceId,kind:control.dataset.kind});
 });
 document.addEventListener("submit",event=>{
+  if(event.target.id==="demo-signature"){
+    event.preventDefault();const form=event.target;
+    try{act(state,"sign",{documentId:form.dataset.document,signatureName:form.elements.signatureName.value,consent:form.elements.consent.checked,thread});$("document-review").close();render();}
+    catch(error){$("sample-signature-error").textContent=error.message;$("sample-signature-error").hidden=false;}
+    return;
+  }
   if(!["demo-message","demo-bid","demo-service"].includes(event.target.id))return;
   event.preventDefault();perform({"demo-message":"message","demo-bid":"bid","demo-service":"requestService"}[event.target.id],Object.fromEntries(new FormData(event.target)));
 });

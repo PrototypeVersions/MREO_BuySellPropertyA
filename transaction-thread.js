@@ -20,7 +20,7 @@
       if (viewerRole === "agent") this.addTabs();
       this.form.addEventListener("submit", event => this.send(event));
       this.root.addEventListener("click", event => {
-        if (event.target.closest("[data-download],[data-sign],[data-send-signature]") && this.documentHandler) this.documentHandler(event);
+        if (event.target.closest("[data-download],[data-sign],[data-send-signature],[data-check-signing]") && this.documentHandler) this.documentHandler(event);
       });
     }
 
@@ -72,7 +72,8 @@
       return `<article class="message document-message" data-document-id="${esc(document.id)}">
         <span class="document-message-icon" aria-hidden="true">${document.content_type==="application/pdf"?"PDF":"FILE"}</span>
         <div class="document-message-body"><small>Document · ${new Date(document.created_at || document.createdAt).toLocaleString()}</small><strong class="document-message-title">${esc(document.filename)}</strong><span>${esc(document.kind)} · ${esc(document.status)} · ${size}</span>
-        <div class="document-actions"><button class="small-button" data-download="${esc(document.id)}" data-version="${completed ? "completed" : "original"}">${completed ? "View executed PDF" : "Download"}</button>${pending ? `<button class="small-button primary" data-sign="${esc(document.id)}">Review &amp; Sign</button>` : ""}${this.viewerRole === "agent" && document.status === "available" ? `<button class="small-button primary" data-send-signature="${esc(document.id)}">Send for signatures</button>` : ""}</div></div>
+        ${pending ? `<small>${document.signer_status === "signed" ? "Your signature is recorded" : document.can_sign ? "Your signature is requested" : "Waiting for the selected signers"}${document.signing_test_mode ? " · Test document" : ""}</small>` : ""}
+        <div class="document-actions"><button class="small-button" data-download="${esc(document.id)}" data-version="${completed ? "completed" : "original"}">${completed ? (document.signing_test_mode ? "View signed test PDF" : "View signed PDF") : "Download"}</button>${pending && document.can_sign ? `<button class="small-button primary" data-sign="${esc(document.id)}">Review &amp; Sign</button>` : ""}${pending && document.can_check_signing ? `<button class="small-button" data-check-signing="${esc(document.id)}">Check signing status</button>` : ""}${this.viewerRole === "agent" && document.status === "available" ? `<button class="small-button primary" data-send-signature="${esc(document.id)}">Send for signatures</button>` : ""}</div></div>
       </article>`;
     }
 

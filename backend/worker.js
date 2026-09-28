@@ -2,6 +2,7 @@ import "../auction-core.js";
 import {apiFetch} from "./api.js";
 import {TransactionRoom} from "./rooms.js";
 import {createHandoffToken} from "./handoff.js";
+import {publicError} from "./http.js";
 
 "use strict";
 const C=globalThis.MreoCore;
@@ -39,7 +40,7 @@ function validSubmission(role,data){
 }
 class Exchange{
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
- async fetch(request){return this.ctx.blockConcurrencyWhile(async()=>{try{return await this.route(request);}catch(e){return json({error:e.status?e.message:e instanceof Error&&!(e instanceof TypeError)?e.message:"The service could not complete this request."},e.status||400);}});}
+ async fetch(request){return this.ctx.blockConcurrencyWhile(async()=>{try{return await this.route(request);}catch(e){return json({error:publicError(e.status?e.message:e instanceof Error&&!(e instanceof TypeError)?e.message:"The service could not complete this request.")},e.status||400);}});}
  async account(request,required=true){const token=(request.headers.get("Authorization")||"").replace(/^Bearer /,""),id=token.split(".")[0];if(!token||!id){if(!required)return null;throw new HttpError("Complete your participant registration first.",401);}
  const a=await this.ctx.storage.get("account:"+id);if(!a||a.expiresAt<Date.now()||!constantEqual(a.tokenHash,await sha(token))){if(!required)return null;throw new HttpError("Your account session has expired. Submit your information again.",401);}return a;}
  publicAccount(a){return {id:a.id,role:a.role,name:a.name,creditCents:a.creditCents,connectedTest:!this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")};}
@@ -167,7 +168,7 @@ async function workerFetch(request,env){
  const response=useApi?await apiFetch(request,env):await env.EXCHANGE.get(env.EXCHANGE.idFromName("mreo-exchange-v1")).fetch(request),headers=new Headers(response.headers);headers.set("Access-Control-Allow-Origin",allowed);headers.set("Vary","Origin");headers.set("X-Content-Type-Options","nosniff");headers.set("Referrer-Policy","no-referrer");
  if(response.webSocket)return response;
  return new Response(response.body,{status:response.status,headers});
- }catch(e){return json({error:e.status?e.message:"The service is not configured."},e.status||503);}
+ }catch(e){return json({error:publicError(e.status?e.message:"The service is not configured.")},e.status||503);}
 }
 
 export { Exchange, TransactionRoom, verifyStripeSignature, validSubmission };

@@ -27,6 +27,7 @@ export async function createTask(request, env, user, transactionId) {
 export async function updateTask(request, env, user, transactionId, taskId) {
   const access = await participation(env, transactionId, user), task = await one(env, "SELECT * FROM tasks WHERE id = ? AND transaction_id = ?", taskId, transactionId);
   if (!task) throw new HttpError("Task not found.", 404, "not_found");
+  if (task.type === "esign_signature") throw new HttpError("Signing tasks are completed only after the signing service confirms your signature.",409,"signature_confirmation_required");
   if (!access.staff && task.assigned_user_id !== user.id && !(task.assigned_user_id == null && task.assigned_role === access.role)) throw new HttpError("This task is assigned to another participant.", 403, "task_forbidden");
   const data = await bodyJSON(request), status = clean(data.status, 20);
   if (!['action','waiting','complete','cancelled'].includes(status)) throw new HttpError("Invalid task status.");

@@ -33,7 +33,7 @@ test("document signatures reference one document and its original private thread
  act(state,"sampleDocument",{thread:"buyer",kind:"agreement"});
  const document=state.documents[0];
  act(state,"requestSignature",{thread:"seller",documentId:document.id});
- act(state,"sign",{thread:"seller",documentId:document.id});
+ act(state,"sign",{thread:"seller",documentId:document.id,signatureName:"Alex Example",consent:true});
  assert.equal(state.documents.length,1);assert.equal(document.status,"complete");
  assert.equal(state.signatureRequests[0].documentId,document.id);
  assert.equal(state.signatureRequests[0].signerRole,"buyer");
@@ -55,8 +55,21 @@ test("a service report is the same record in the service and conversation",()=>{
 
 test("sample result, signing and completed service allow a complete saved journey",()=>{
  const state=createScenario();act(state,"participate");act(state,"bid",{amount:429000});act(state,"closeAuction");
- act(state,"sampleDocument",{kind:"agreement"});act(state,"requestSignature",{documentId:state.documents[0].id});act(state,"sign",{documentId:state.documents[0].id});
+ act(state,"sampleDocument",{kind:"agreement"});act(state,"requestSignature",{documentId:state.documents[0].id});act(state,"sign",{documentId:state.documents[0].id,signatureName:"Alex Example",consent:true});
  act(state,"requestService",{service:"title"});act(state,"advanceService",{serviceId:state.serviceRequests[0].id});act(state,"advanceService",{serviceId:state.serviceRequests[0].id});
  act(state,"complete");assert.equal(state.transaction.status,"complete");
  const storage=memory();saveScenario(storage,"demo:",state);assert.deepEqual(loadScenario(storage,"demo:"),state);
+});
+test("sample signing requires a typed name and consent, including previously simulated runs",()=>{
+ const state=createScenario();act(state,"sampleDocument",{kind:"agreement"});const documentId=state.documents[0].id;
+ act(state,"requestSignature",{documentId});
+ assert.throws(()=>act(state,"sign",{documentId}),/name/);
+ assert.throws(()=>act(state,"sign",{documentId,signatureName:"Alex Example"}),/name/);
+ assert.equal(state.documents[0].status,"signature_pending");
+ // Preserve old snapshots while allowing their button-only simulation to acquire a sample signature.
+ state.signatureRequests[0].status="complete";state.documents[0].status="complete";
+ act(state,"sign",{documentId,signatureName:"Alex Example",consent:true});
+ assert.equal(state.signatureRequests[0].signatureName,"Alex Example");
+ assert.equal(state.signatureRequests[0].method,"typed");
+ assert.throws(()=>act(state,"sign",{documentId,signatureName:"Someone Else",consent:true}),/Request/);
 });

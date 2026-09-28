@@ -1,6 +1,7 @@
 import {all, batch, one, parseJSON, run, database} from "./db.js";
 import {audit} from "./audit.js";
-import {bodyJSON, clean, HttpError, id, now} from "./http.js";
+import {bodyJSON, clean, HttpError, id, now, redactEmails} from "./http.js";
+import {canSeeDocument} from "./documents.js";
 import {hasRole} from "./auth.js";
 import {verifyHandoffToken} from "./handoff.js";
 
@@ -38,7 +39,7 @@ export async function getTransaction(env, transactionId, user) {
   const participants = await all(env, `SELECT p.role, p.status, u.id, u.display_name, u.email
     FROM transaction_participants p JOIN users u ON u.id = p.user_id
     WHERE p.transaction_id = ? AND p.status <> 'removed' ORDER BY p.created_at`, transactionId);
-  const visibleParticipants = access.staff ? participants : participants.map(person => ({...person, email:person.id === user.id ? person.email : null}));
+  const visibleParticipants = participants.map(person => ({...person, display_name:person.display_name?.includes("@") ? "MREO participant" : person.display_name, email:access.staff || person.id === user.id ? person.email : null}));
   return {...viewTransaction(transaction), viewerRole:access.role, participants:visibleParticipants};
 }
 
@@ -88,5 +89,16 @@ export async function transactionEvents(env, transactionId, user) {
   const access = await participation(env, transactionId, user);
   const rows = await all(env, `SELECT a.*, u.display_name actor_name FROM audit_events a LEFT JOIN users u ON u.id = a.actor_user_id
     WHERE a.transaction_id = ? ORDER BY a.created_at ASC LIMIT 500`, transactionId);
-  return access.staff ? rows : rows.map(({metadata_json, ...event}) => ({...event, metadata_json:"{}"}));
+  let visible=rows;
+  if (!access.staff) {
+    const [documents,tasks,messages]=await Promise.all([
+      all(env,"SELECT id, visibility FROM documents WHERE transaction_id = ?",transactionId),
+      all(env,"SELECT id FROM tasks WHERE transaction_id = ? AND (assigned_user_id = ? OR (assigned_user_id IS NULL AND assigned_role = ?))",transactionId,user.id,access.role),
+      all(env,"SELECT m.id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.transaction_id = ? AND t.kind = ?",transactionId,access.role === "provider" ? "provider_agent" : access.role + "_agent")
+    ]);
+    const allowed={document:new Set(documents.filter(doc=>canSeeDocument(doc,access)).map(doc=>doc.id)),task:new Set(tasks.map(task=>task.id)),message:new Set(messages.map(message=>message.id))};
+    visible=rows.filter(event=>allowed[event.entity_type] ? allowed[event.entity_type].has(event.entity_id) : ["transaction","service_request","user"].includes(event.entity_type));
+  }
+  // Audit metadata may contain old signer emails. It is not needed by the activity UI.
+  return visible.map(({metadata_json,...event})=>({...event,summary:redactEmails(event.summary),actor_name:redactEmails(event.actor_name),metadata_json:"{}"}));
 }
