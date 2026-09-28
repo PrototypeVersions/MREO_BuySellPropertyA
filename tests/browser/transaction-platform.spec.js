@@ -21,6 +21,8 @@ test("My MREO explains deployment state without creating a fake account",async({
 
 test("home opens the property list and keeps My MREO available",async({page})=>{
  await page.goto("/index.html");
+ await expect(page.getByRole("link",{name:"Experience the MREO protocol"})).toHaveCount(0);
+ await expect(page.getByText("Acquire · Sell · Transfer · Improve · Represent · Rent / Manage")).toBeVisible();
  await page.getByRole("link",{name:"My properties",exact:true}).click();
  await expect(page).toHaveURL(/my-properties\.html$/);
  await expect(page.getByRole("link",{name:"Start a demonstration"})).toHaveAttribute("href","experience.html");
