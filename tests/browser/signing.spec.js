@@ -26,13 +26,13 @@ async function connected(page,{error=false,canSign=true}={}) {
   await page.goto("/coordination.html?transaction=tx&section=files");
 }
 
-async function connectedSelfSigning(page) {
+async function connectedSelfSigning(page,{viewerRole="buyer"}={}) {
   await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG={mode:"connected",apiBase:"https://api.mreo.test"};'}));
   await page.route("https://api.mreo.test/**",route=>route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true}}));
   await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
     window.selfSignRequests=[];window.recordStatus="available";
     window.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"buyer"}),request:async(path,options={})=>{
-      if(path==="/api/v1/transactions/tx")return {id:"tx",title:"Riverside Terrace",viewerRole:"buyer",kind:"property",status:"active",participants:[{id:"buyer",role:"buyer",status:"active"}]};
+      if(path==="/api/v1/transactions/tx")return {id:"tx",title:"Riverside Terrace",viewerRole:"${viewerRole}",kind:"property",status:"active",participants:[{id:"buyer",role:"buyer",status:"active"}]};
       if(path.endsWith("/documents")){if(options.method==="POST")throw Error("Unexpected upload");return {documents:[{id:"own-pdf",filename:"My agreement.pdf",visibility:"buyer_agent",status:recordStatus,content_type:"application/pdf",size_bytes:100,created_at:1,can_request_signature:recordStatus==="available",request_signature_role:"buyer",can_sign:recordStatus==="signature_pending",can_check_signing:recordStatus==="signature_pending",signing_test_mode:true}]};}
       if(path.endsWith("/documents/own-pdf/signatures")){selfSignRequests.push(JSON.parse(options.body));recordStatus="signature_pending";return {status:"signature_pending",testMode:true};}
       if(path.endsWith("/documents/own-pdf/signing-session"))return {url:"https://www.signwell.com/docs/self-sign-test",testMode:true};
@@ -88,6 +88,23 @@ test("an uploaded PDF can start embedded self-signing from its message card",asy
   await expect.poll(()=>page.evaluate(()=>window.embedOpened)).toBe(true);
   expect(await page.evaluate(()=>selfSignRequests)).toEqual([{self:true,role:"buyer"}]);
   await expect(page.getByRole("button",{name:"Review & Sign"})).toBeVisible();
+});
+
+test("agent document upload controls remain readable without overlap",async({page})=>{
+  await connectedSelfSigning(page,{viewerRole:"agent"});
+  await expect(page.getByLabel("Choose from your computer")).toBeVisible();
+  await expect(page.getByLabel("Who may see it")).toBeVisible();
+  const layout=await page.locator(".document-composer .upload-form").evaluate(form=>{
+    const controls=[form.querySelector('input[type="file"]'),form.querySelector("select"),form.querySelector("button")];
+    const rects=controls.map(control=>control.getBoundingClientRect());
+    const outer=form.getBoundingClientRect();
+    return {
+      ordered:rects[0].bottom<=rects[1].top&&rects[1].bottom<=rects[2].top,
+      contained:rects.every(rect=>rect.left>=outer.left-1&&rect.right<=outer.right+1),
+      noPageOverflow:document.documentElement.scrollWidth<=innerWidth+1
+    };
+  });
+  expect(layout).toEqual({ordered:true,contained:true,noPageOverflow:true});
 });
 
 test("signing errors in Files show a useful message without exposing email addresses",async({page})=>{
