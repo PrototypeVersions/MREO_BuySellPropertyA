@@ -22,7 +22,7 @@
     try {
       const result=await MreoIdentity.request(`${base}/documents/${encodeURIComponent(documentId)}/signing-status`,{method:"POST",body:"{}"});
       await onRefresh();
-      onStatus(result.complete ? "Signing is complete. The signed PDF is available in Files and Messages." : result.signerStatus==="signed" ? "Your signature is recorded. Waiting for the remaining signatures or final PDF." : "Signing is not complete yet. Use Review & Sign to finish your request.");
+      onStatus(result.complete ? "Signing is complete. The signed PDF is available in Files and Messages." : result.closed || result.signerStatus==="declined" ? "This signing request is closed. Please ask MREO for a new request." : result.signerStatus==="signed" ? "Your signature is recorded. Waiting for the remaining signatures or final PDF." : "Signing is not complete yet. Use Review & Sign to finish your request.");
       return result;
     } catch(error) {onStatus(safeError(error),true);return null;}
   }

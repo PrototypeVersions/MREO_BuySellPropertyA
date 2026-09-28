@@ -8,13 +8,32 @@ on:
       - 'scripts/check-signwell.mjs'
       - '.github/workflows/update-cloudflare.yml'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/esign.js'
+      - 'scripts/check-signwell.mjs'
+      - '.github/workflows/update-cloudflare.yml'
 permissions:
   contents: read
 concurrency:
-  group: mreo-cloudflare-production
+  group: ${{ github.event_name == 'pull_request' && format('mreo-signwell-check-{0}', github.event.number) || 'mreo-cloudflare-production' }}
   cancel-in-progress: false
 jobs:
+  verify-provider:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check SignWell without notifications or signatures
+        env:
+          SIGNWELL_API_KEY: ${{ secrets.SIGNWELL_API_KEY }}
+        run: node scripts/check-signwell.mjs
   deploy:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

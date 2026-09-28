@@ -8,7 +8,7 @@ async function request(path,method="GET",body){
   const response=await fetch(endpoint+path,{method,headers:{"X-Api-Key":key,...(body?{"Content-Type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error(`SignWell integration check returned HTTP ${response.status}. Provider response withheld to protect account information.`);
   if(response.status===204)return null;
-  const text=await response.text();return text?JSON.parse(text):null;
+  const text=await response.text();try{return text?JSON.parse(text):null;}catch{throw Error("SignWell returned an unexpected response. Response withheld to protect account information.");}
 }
 const content="BT /F1 18 Tf 50 740 Td (MREO INTEGRATION TEST - NOT A CONTRACT) Tj 0 -35 Td /F1 12 Tf (Fictional document. No legal effect. No notifications.) Tj ET";
 const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",`<< /Length ${content.length} >>\nstream\n${content}\nendstream`];
@@ -18,7 +18,12 @@ let createdId;
 try{
   const created=await request("/documents","POST",{test_mode:true,name:"MREO automated integration test",files:[{name:"mreo-integration-test.pdf",file_base64:Buffer.from(pdf).toString("base64")}],recipients:[{id:"test-signer",name:"Fictional MREO Test Signer",email:"mreo-signing-test@example.com"}],draft:false,with_signature_page:true,embedded_signing:true,embedded_signing_notifications:false,reminders:false,allow_reassign:false,apply_signing_order:false,custom_requester_name:"MREO",metadata:{purpose:"automated-nonbinding-integration-check"}});
   createdId=created.id;assert.ok(createdId,"SignWell did not return a test document identifier.");
-  const saved=await request("/documents/"+encodeURIComponent(createdId));
+  let saved;
+  for(let attempt=0;attempt<4;attempt++){
+    saved=await request("/documents/"+encodeURIComponent(createdId));
+    if(saved.recipients?.some(item=>item.embedded_signing_url))break;
+    if(attempt<3)await new Promise(resolve=>setTimeout(resolve,2500));
+  }
   assert.equal(saved.test_mode,true,"Integration checks must remain in SignWell test mode.");
   const signer=saved.recipients?.find(item=>item.email==="mreo-signing-test@example.com");
   assert.ok(signer?.embedded_signing_url,"SignWell did not provide a recipient signing session.");

@@ -120,3 +120,13 @@ test("participant uploads cannot silently broaden a private conversation's shari
   const result=await apiFetch(request,f.e);assert.equal(result.status,201);assert.equal((await result.json()).visibility,"buyer_agent");
   assert.equal((await f.call("/documents","bob")).body.documents.length,0);
 });
+test("a declined request closes without producing a signed document",async t=>{
+  const f=await fixture();let declined=false;
+  provider(t,()=>Response.json({...remote(),status:declined?"declined":"sent",recipients:[{email:"alice@example.com",status:declined?"declined":"pending"}]}));
+  await f.send();declined=true;
+  const status=await f.call("/documents/doc/signing-status","alice","POST",{});
+  assert.equal(status.body.complete,false);assert.equal(status.body.closed,true);
+  assert.equal((await f.call("/documents")).body.documents[0].status,"voided");
+  assert.equal((await f.call("/documents")).body.documents[0].can_sign,false);
+  assert.equal((await f.call("/tasks")).body.tasks.find(task=>task.type==="esign_signature").status,"cancelled");
+});

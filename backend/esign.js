@@ -114,6 +114,14 @@ export async function reconcileSignwell(env,externalId,actorUserId=null) {
     if (status==="signed") await run(env,"UPDATE tasks SET status = 'complete', updated_at = ? WHERE document_id = ? AND type = 'esign_signature' AND assigned_user_id = ?",timestamp,local.id,recipient.user_id);
   }
   const complete=remoteComplete(remote);
+  const closed=["cancelled","expired","declined"].includes(remote.status);
+  if(closed && local.status!=="voided") {
+    await batch(env,[
+      ["UPDATE documents SET status = 'voided', updated_at = ? WHERE id = ?",[timestamp,local.id]],
+      ["UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE document_id = ? AND type = 'esign_signature' AND status <> 'complete'",[timestamp,local.id]]
+    ]);
+    await audit(env,{transactionId:local.transaction_id,actorUserId,eventType:"esign.closed",entityType:"document",entityId:local.id,summary:`Signing request closed for ${local.filename}.`});
+  }
   if (complete && !(local.status==="complete" && local.completed_object_key)) {
     const pdf=await signwell(env,`/documents/${encodeURIComponent(externalId)}/completed_pdf?file_format=pdf&audit_page=true&url_only=false`);
     if (!(pdf instanceof ArrayBuffer) || new TextDecoder().decode(new Uint8Array(pdf,0,Math.min(5,pdf.byteLength)))!=="%PDF-") throw new HttpError("The signed PDF is still being prepared. Check signing status again shortly.",409,"signed_pdf_pending");
@@ -125,7 +133,7 @@ export async function reconcileSignwell(env,externalId,actorUserId=null) {
     ]);
     await audit(env,{transactionId:local.transaction_id,actorUserId,eventType:"esign.completed",entityType:"document",entityId:local.id,summary:`Signing completed for ${local.filename}.`,metadata:{provider:"signwell"}});
   } else if(changed) await audit(env,{transactionId:local.transaction_id,actorUserId,eventType:"esign.updated",entityType:"document",entityId:local.id,summary:`Signature status updated for ${local.filename}.`,metadata:{provider:"signwell"}});
-  return {ok:true,complete,transactionId:local.transaction_id};
+  return {ok:true,complete,closed,transactionId:local.transaction_id};
 }
 export async function signatureStatus(env,user,transactionId,documentId) {
   const {access,document,recipient}=await signingAccess(env,user,transactionId,documentId);
@@ -133,7 +141,7 @@ export async function signatureStatus(env,user,transactionId,documentId) {
   if (!document.esign_external_id) throw new HttpError("This document has not been sent for signature.",409,"not_sent");
   const result=await reconcileSignwell(env,document.esign_external_id,user.id);
   const own=(await signingRecipients(env,user,transactionId)).find(item=>item.document_id===documentId);
-  return {complete:result.complete,signerStatus:own?.status || null};
+  return {complete:result.complete,closed:result.closed,signerStatus:own?.status || null};
 }
 export async function signwellWebhook(request,env) {
   const supplied=new URL(request.url).searchParams.get("token") || request.headers.get("X-MREO-Webhook-Token");

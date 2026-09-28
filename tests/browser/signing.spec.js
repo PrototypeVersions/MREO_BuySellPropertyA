@@ -5,10 +5,10 @@ async function connected(page,{error=false,canSign=true}={}) {
   await page.route("https://api.mreo.test/**",route=>route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true}}));
   await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
     window.providerComplete=false;window.signingCalls=[];
-    const document={id:"doc",filename:"Agreement.pdf",visibility:"buyer_agent",status:"signature_pending",content_type:"application/pdf",size_bytes:100,created_at:1,can_sign:${canSign},can_check_signing:true,signing_test_mode:true};
+    const signingRecord={id:"doc",filename:"Agreement.pdf",visibility:"buyer_agent",status:"signature_pending",content_type:"application/pdf",size_bytes:100,created_at:1,can_sign:${canSign},can_check_signing:true,signing_test_mode:true};
     window.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"buyer"}),request:async(path,options={})=>{
       if(path==="/api/v1/transactions/tx")return {id:"tx",title:"Riverside Terrace",viewerRole:"buyer",kind:"property",status:"active",participants:[]};
-      if(path.endsWith("/documents"))return {documents:[{...document,status:providerComplete?"complete":"signature_pending",can_sign:${canSign}&&!providerComplete}]};
+      if(path.endsWith("/documents"))return {documents:[{...signingRecord,status:providerComplete?"complete":"signature_pending",can_sign:${canSign}&&!providerComplete}]};
       if(path.endsWith("/messages")||path.includes("/messages?"))return {messages:[]};
       if(path.endsWith("/tasks"))return {tasks:providerComplete?[]:[{id:"signature-task",title:"Review and sign Agreement.pdf",type:"esign_signature",status:"action"}]};
       if(path.endsWith("/events"))return {events:[]};
