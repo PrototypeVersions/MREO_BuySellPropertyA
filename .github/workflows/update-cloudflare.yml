@@ -1,0 +1,55 @@
+name: Update MREO backend
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'migrations/**'
+      - 'scripts/check-signwell.mjs'
+      - '.github/workflows/update-cloudflare.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mreo-cloudflare-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify server behavior
+        run: npm test
+      - name: Update existing Worker without rotating secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="$(npx --yes wrangler@4.137.0 whoami --json)"
+          CLOUDFLARE_ACCOUNT_ID="$(IDENTITY="$identity" node -e '
+            const body=JSON.parse(process.env.IDENTITY);
+            const accounts=body.accounts || body.memberships || body.account || [];
+            const first=Array.isArray(accounts)?accounts[0]:accounts;
+            const id=first?.id || first?.account_id || first?.account?.id || body.account_id;
+            if(!id)process.exit(1);process.stdout.write(String(id));
+          ')"
+          export CLOUDFLARE_ACCOUNT_ID
+          npx --yes wrangler@4.137.0 d1 migrations apply mreo-dev --remote
+          npx --yes wrangler@4.137.0 deploy --keep-vars
+      - name: Verify the deployed signing flow
+        run: |
+          node --input-type=module <<'JS'
+          const config=await fetch('https://mreo-buysell-exchange.blakeaustinmyers01.workers.dev/api/v1/config').then(response=>response.json());
+          if(config.signingFlow!=='embedded-v2'||!config.signwellConfigured||config.signwellTestMode!==true)throw Error('The deployed signing configuration did not pass verification.');
+          console.log('Embedded signing backend is deployed in test mode.');
+          JS
+      - name: Check SignWell without sending notifications or signing
+        env:
+          SIGNWELL_API_KEY: ${{ secrets.SIGNWELL_API_KEY }}
+        run: node scripts/check-signwell.mjs

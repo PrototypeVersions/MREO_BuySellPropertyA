@@ -75,8 +75,11 @@ export function act(state,type,payload={}) {
     record(state,"signature.requested",signature.id,"Sample signature requested",documentThread);
   } else if(type==="sign") {
     const doc=visibleDocuments(state).find(item=>item.id===payload.documentId);
-    const signature=state.signatureRequests.find(item=>item.documentId===doc?.id&&item.status==="pending");
+    const signature=state.signatureRequests.find(item=>item.documentId===doc?.id&&(item.status==="pending" || (item.status==="complete" && !item.signatureName)));
     if(!doc||!signature)throw Error("Request a sample signature first.");
+    const signatureName=String(payload.signatureName||"").trim().slice(0,120);
+    if(!signatureName || signatureName.includes("@") || payload.consent!==true)throw Error("Enter a sample signer name and confirm that this is a demonstration signature.");
+    signature.signatureName=signatureName;signature.method="typed";signature.consent=true;
     signature.status="complete";signature.completedAt=stamp();doc.status="complete";doc.updatedAt=stamp();
     message(state,signature.signerRole,"agent","Demonstration signing complete. This is not a legally executed agreement.",{documentId:doc.id,event:"signature.completed"});
     record(state,"signature.completed",signature.id,"Simulated signing completed",signature.signerRole);

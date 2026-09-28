@@ -9,7 +9,7 @@ const allowedTypes = new Set([
   "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ]);
 
-function canSee(document, access) {
+export function canSeeDocument(document, access) {
   if (access.staff || document.visibility === "participants") return true;
   if (document.visibility === "buyer_agent") return access.role === "buyer";
   if (document.visibility === "seller_agent") return access.role === "seller";
@@ -20,7 +20,20 @@ function canSee(document, access) {
 export async function listDocuments(env, user, transactionId) {
   const access = await participation(env, transactionId, user);
   const rows = await all(env, "SELECT * FROM documents WHERE transaction_id = ? ORDER BY created_at DESC", transactionId);
-  return rows.filter(row => canSee(row, access)).map(({object_key, completed_object_key, ...row}) => row);
+  const recipients = await signingRecipients(env, user, transactionId);
+  return rows.filter(row => canSeeDocument(row, access)).map(({object_key, completed_object_key, esign_external_id, ...row}) => {
+    const signer = recipients.find(recipient => recipient.document_id === row.id);
+    return {...row, can_sign:row.status === "signature_pending" && !!signer && !["signed","declined"].includes(signer.status),
+      signer_status:signer?.status || null, can_check_signing:!!esign_external_id && (access.staff || !!signer), signing_test_mode:env.SIGNWELL_TEST_MODE !== "false"};
+  });
+}
+
+// Signing belongs to an individual, active participant, even if they also have a staff role.
+export async function signingRecipients(env, user, transactionId) {
+  return all(env, `SELECT r.* FROM document_recipients r
+    JOIN documents d ON d.id = r.document_id
+    JOIN transaction_participants p ON p.transaction_id = d.transaction_id AND p.user_id = ? AND p.role = r.role AND p.status = 'active'
+    WHERE d.transaction_id = ? AND (r.user_id = ? OR (r.user_id IS NULL AND lower(r.email) = lower(?)))`, user.id, transactionId, user.id, user.email || "");
 }
 
 export async function uploadDocument(request, env, user, transactionId) {
@@ -34,7 +47,9 @@ export async function uploadDocument(request, env, user, transactionId) {
   const filename = clean(file.name, 240).replace(/[\\/\0]/g, "-") || "document";
   const documentId = id("doc"), timestamp = now(), key = `transactions/${transactionId}/${documentId}/original/${filename}`;
   await env.DOCUMENTS.put(key, file.stream(), {httpMetadata:{contentType, contentDisposition:`attachment; filename="${filename.replaceAll('"','')}"`}, customMetadata:{transactionId, documentId}});
-  const visibility = ["participants","buyer_agent","seller_agent","agent_provider","agent_only"].includes(form.get("visibility")) ? form.get("visibility") : "participants";
+  const requestedVisibility = form.get("visibility");
+  const visibility = access.staff && ["participants","buyer_agent","seller_agent","agent_provider","agent_only"].includes(requestedVisibility)
+    ? requestedVisibility : ({buyer:"buyer_agent",seller:"seller_agent",provider:"agent_provider"}[access.role] || "agent_only");
   const kind = clean(form.get("kind"), 80) || "general";
   await run(env, `INSERT INTO documents (id, transaction_id, uploaded_by, kind, filename, object_key, content_type, size_bytes, status, visibility, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?)`, documentId, transactionId, user.id, kind, filename, key, contentType, file.size, visibility, timestamp, timestamp);
@@ -45,9 +60,10 @@ export async function uploadDocument(request, env, user, transactionId) {
 export async function downloadDocument(request, env, user, transactionId, documentId) {
   const access = await participation(env, transactionId, user);
   const document = await one(env, "SELECT * FROM documents WHERE id = ? AND transaction_id = ?", documentId, transactionId);
-  if (!document || !canSee(document, access)) throw new HttpError("Document not found.", 404, "not_found");
+  if (!document || !canSeeDocument(document, access)) throw new HttpError("Document not found.", 404, "not_found");
   const completed = new URL(request.url).searchParams.get("version") === "completed";
-  const key = completed && document.completed_object_key ? document.completed_object_key : document.object_key;
+  if (completed && !document.completed_object_key) throw new HttpError("The signed PDF is not ready yet. Check signing status and try again.", 409, "signed_pdf_pending");
+  const key = completed ? document.completed_object_key : document.object_key;
   const object = await env.DOCUMENTS?.get(key);
   if (!object) throw new HttpError("The stored file is unavailable.", 404, "file_missing");
   const headers = new Headers(); object.writeHttpMetadata(headers);

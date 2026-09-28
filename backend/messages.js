@@ -23,7 +23,7 @@ export async function listMessages(request, env, user, transactionId) {
   const messages = await all(env, `SELECT m.id, m.thread_id, m.author_role, m.body, m.correction_of, m.created_at,
       u.display_name author_name FROM messages m JOIN users u ON u.id = m.author_user_id
     WHERE m.thread_id = ? ORDER BY m.created_at ASC LIMIT 500`, thread.id);
-  return {thread:{id:thread.id, kind:thread.kind}, messages};
+  return {thread:{id:thread.id, kind:thread.kind}, messages:messages.map(message=>({...message,author_name:message.author_name?.includes("@") ? "MREO participant" : message.author_name}))};
 }
 
 export async function createMessage(request, env, user, transactionId) {

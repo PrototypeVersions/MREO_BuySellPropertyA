@@ -24,9 +24,14 @@ export const id = prefix => `${prefix}_${crypto.randomUUID().replaceAll("-", "")
 export const now = () => Date.now();
 export const clean = (value, max = 4000) => String(value ?? "").trim().slice(0, max);
 export const validEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(value, 254));
+export const redactEmails = value => String(value ?? "").replace(/[^\s<>"'()]+@[^\s<>"'()]+\.[^\s<>"'()]+/g, "[private email]");
+export const publicError = message => {
+  const text = String(message || "");
+  return !text || text.includes("@") ? "The request could not be completed. Please try again or contact MREO." : text;
+};
 
 export function errorResponse(error) {
-  if (error instanceof HttpError) return json({error:error.message, code:error.code}, error.status);
-  console.error("MREO API error", error);
+  if (error instanceof HttpError) return json({error:publicError(error.message), code:error.code}, error.status);
+  console.error("MREO API error", {type:error?.name || "Error"});
   return json({error:"The service could not complete this request.", code:"internal_error"}, 500);
 }

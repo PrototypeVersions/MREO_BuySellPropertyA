@@ -15,6 +15,17 @@
       timeline.root.addEventListener("mreo:thread-selected", () => this.form.reset());
     }
 
+    notice(message,error=false) {
+      let notice=document.getElementById("workspace-signing-notice") || this.root.querySelector(".vault-notice");
+      if(!notice){notice=document.createElement("p");notice.setAttribute("role","status");this.root.append(notice);}
+      notice.className="vault-notice case-hint"+(error?" error-message":"");notice.textContent=message;notice.hidden=false;
+      if(error)notice.scrollIntoView({block:"center"});
+    }
+
+    signingOptions(documentId) {
+      return {base:this.base,documentId,onStatus:(message,error)=>this.notice(message,error),onRefresh:async()=>{await this.refresh();dispatchEvent(new CustomEvent("mreo:workspace-changed"));}};
+    }
+
     updateVisibility(data = null) {
       const formData = data || new FormData(this.form);
       if (formData.get("visibility") === "thread") formData.set("visibility", this.timeline.visibility());
@@ -34,7 +45,7 @@
         this.onUpdated?.([]);
         let notice = this.root.querySelector(".upload-error");
         if (!notice) { notice = document.createElement("p"); notice.className = "upload-error"; this.root.append(notice); }
-        notice.textContent = error.message;
+        notice.textContent = MreoSigning.safeError(error);
       }
     }
 
@@ -47,12 +58,12 @@
         this.form.reset();
         await this.refresh();
         dispatchEvent(new CustomEvent("mreo:workspace-changed"));
-      } catch (error) { alert(error.message); }
+      } catch (error) { this.notice(MreoSigning.safeError(error),true); }
       finally { button.disabled = false; }
     }
 
     async click(event) {
-      const download = event.target.closest("[data-download]"), sign = event.target.closest("[data-sign]"), send = event.target.closest("[data-send-signature]");
+      const download = event.target.closest("[data-download]"), sign = event.target.closest("[data-sign]"), send = event.target.closest("[data-send-signature]"), check = event.target.closest("[data-check-signing]");
       try {
         if (download) {
           download.disabled = true;
@@ -64,24 +75,26 @@
         }
         if (sign) {
           sign.disabled = true;
-          const {url} = await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(sign.dataset.sign)}/signing-session`, {method:"POST", body:"{}"});
-          open(url, "_blank", "noopener"); sign.disabled = false;
+          await MreoSigning.open(this.signingOptions(sign.dataset.sign));sign.disabled = false;
         }
+        if(check){check.disabled=true;await MreoSigning.check(this.signingOptions(check.dataset.checkSigning));check.disabled=false;}
         if (send) {
           send.disabled = true;
           const document = this.documents.find(item => item.id === send.dataset.sendSignature);
           const allowed = document?.visibility === "participants" ? ["buyer","seller"] : document?.visibility === "buyer_agent" ? ["buyer"] : document?.visibility === "seller_agent" ? ["seller"] : document?.visibility === "agent_provider" ? ["provider"] : [];
-          const recipients = this.transaction.participants.filter(person => person.status === "active" && allowed.includes(person.role) && person.email).map(person => ({role:person.role, name:person.display_name || person.email, email:person.email}));
+          const recipients = this.transaction.participants.filter(person => person.status === "active" && allowed.includes(person.role) && person.email).map(person => ({userId:person.id,role:person.role,name:person.display_name && !person.display_name.includes("@") ? person.display_name : "MREO "+person.role}));
           if (!recipients.length) throw Error("Add an active participant with access to this document before sending a signature request.");
-          if (!confirm("Send "+document.filename+" for signature to "+recipients.map(person=>person.name+" ("+person.email+")").join(", ")+"? The signing provider may send email notifications.")) { send.disabled = false; return; }
-          await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(send.dataset.sendSignature)}/signatures`, {method:"POST", body:JSON.stringify({recipients, applySigningOrder:true})});
+          if (!confirm("Prepare "+document.filename+" for signature by "+recipients.map(person=>person.name+" ("+person.role+")").join(", ")+"? They will sign inside their MREO workspace.")) { send.disabled = false; return; }
+          const result=await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(send.dataset.sendSignature)}/signatures`, {method:"POST", body:JSON.stringify({recipients:recipients.map(({userId,role})=>({userId,role})),applySigningOrder:false})});
           await this.refresh(); dispatchEvent(new CustomEvent("mreo:workspace-changed"));
+          this.notice(result.testMode ? "Test signing request prepared. Each selected participant can now choose Review & Sign from their account." : "Signing request prepared. Each selected participant can now choose Review & Sign from their account.");
         }
       } catch (error) {
         if (download) download.disabled = false;
         if (sign) sign.disabled = false;
         if (send) send.disabled = false;
-        alert(error.message);
+        if (check) check.disabled = false;
+        this.notice(MreoSigning.safeError(error),true);
       }
     }
   }

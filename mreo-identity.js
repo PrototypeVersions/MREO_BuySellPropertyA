@@ -5,6 +5,10 @@
 
   const apiBase = () => String(config.apiBase || "").replace(/\/$/, "");
   const connected = () => config.mode === "connected" && /^https:\/\//.test(apiBase());
+  const publicError = error => {
+    const message = String(error?.message || error || "");
+    return !message || message.includes("@") ? "The request could not be completed. Please try again or contact MREO." : message;
+  };
   const getConfig = async () => {
     if (serviceConfig) return serviceConfig;
     if (!connected()) return serviceConfig = {connected:false, authConfigured:false};
@@ -32,7 +36,7 @@
       if (!clerk) throw Error("MREO sign-in did not initialize.");
       await clerk.load({ui:{ClerkUI:globalThis.__internal_ClerkUICtor}});
       return clerk;
-    })();
+    })().catch(error => { loading=null;throw Error(publicError(error)); });
     return loading;
   }
   const getToken = async () => { const instance = await init(); return instance?.session ? instance.session.getToken() : null; };
@@ -45,7 +49,7 @@
     const response = await fetch(apiBase() + path, {...options, headers});
     const type = response.headers.get("Content-Type") || "";
     const data = type.includes("json") ? await response.json() : response;
-    if (!response.ok) throw Error(data?.error || "MREO could not complete that request.");
+    if (!response.ok) { const error=Error(publicError(data?.error || "MREO could not complete that request."));error.code=data?.code;throw error; }
     return data;
   }
   async function openSignIn(afterSignInUrl = location.href) {
@@ -58,5 +62,5 @@
   const signOut = async () => (await init())?.signOut();
   const liveUrl = path => apiBase().replace(/^http/, "ws") + path;
 
-  globalThis.MreoIdentity = {connected, init, getConfig, getToken, request, openSignIn, mountUserButton, currentUser, signOut, liveUrl};
+  globalThis.MreoIdentity = {connected, init, getConfig, getToken, request, openSignIn, mountUserButton, currentUser, signOut, liveUrl, publicError};
 })();

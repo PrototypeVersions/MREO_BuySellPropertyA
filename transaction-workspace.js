@@ -18,6 +18,7 @@
       '<section id="view-files" class="case-view-live" hidden><section class="workspace-card"><p class="section-label">Your permitted documents</p><h2>Files</h2><p class="workspace-card-subtitle">An index of the same files shared in Messages—not separate copies. Existing shared documents retain their access settings.</p><div id="file-index" class="document-list"></div></section></section>'+
       '<details class="case-records"><summary>Activity and access</summary><p>Messages, files, tasks, and service requests are linked to this transaction. Connected data is saved on the server; the guided demonstration has separate browser-only records.</p><div id="event-list" class="event-list"></div>'+(staff?'<h3>Participants and access</h3><div id="participant-list" class="task-list"></div><form id="participant-form" class="upload-form participant-form"><label>Email<input name="email" type="email" required></label><label>Role<select name="role"><option>buyer</option><option>seller</option><option>provider</option><option>agent</option></select></label><button class="small-button" type="submit">Add existing MREO account</button></form>':"")+'</details>';
     thread=new TransactionThread($("transaction-thread"),transaction.id,role);
+    const signingNotice=document.createElement("p");signingNotice.id="workspace-signing-notice";signingNotice.setAttribute("role","status");signingNotice.hidden=true;$("workspace-tabs").after(signingNotice);
     vault=new DocumentVault($("document-vault"),transaction,thread);
     vault.onUpdated=documents=>{
       $("file-index").innerHTML=documents.length?documents.map(document=>thread.documentCard(document)).join(""):'<div class="empty-card"><p>No documents yet. Add a file from Messages.</p></div>';
@@ -45,7 +46,7 @@
     try{
       const [{tasks},{events},{services}]=await Promise.all([MreoIdentity.request(base+"/tasks"),MreoIdentity.request(base+"/events"),MreoIdentity.request(base+"/services"),thread.refresh(),vault.refresh()]);
       const action=tasks.filter(task=>task.status==="action");
-      const taskHTML=action.length?'<ul>'+action.map(task=>'<li><strong>'+esc(task.title)+'</strong> <button class="small-button" data-task="'+esc(task.id)+'">Mark complete</button></li>').join("")+'</ul>':'<p>No immediate action. Check back here for updates from MREO.</p>';
+      const taskHTML=action.length?'<ul>'+action.map(task=>'<li><strong>'+esc(task.title)+'</strong> '+(task.type==="esign_signature"?'<a class="small-button" href="coordination.html?transaction='+encodeURIComponent(transaction.id)+'&section=files">View signing request</a>':'<button class="small-button" data-task="'+esc(task.id)+'">Mark complete</button>')+'</li>').join("")+'</ul>':'<p>No immediate action. Check back here for updates from MREO.</p>';
       $("workspace-attention").innerHTML='<p class="section-label">Next steps</p>'+taskHTML;
       $("coordination-tasks").innerHTML=taskHTML;
       root.querySelectorAll("[data-task]").forEach(button=>button.onclick=async()=>{
@@ -55,7 +56,7 @@
       thread.events=events;thread.render();
       const docs=new Set((vault.documents||[]).map(doc=>doc.id));
       $("event-list").innerHTML=events.filter(event=>event.entity_type!=="document"||docs.has(event.entity_id)).map(event=>'<article class="event-item"><time>'+new Date(event.created_at).toLocaleString()+'</time><p>'+esc(event.summary)+'</p></article>').join("");
-      if($("participant-list"))$("participant-list").innerHTML=transaction.participants.map(person=>'<div class="task-item"><strong>'+esc(person.display_name||person.email||"Participant")+'</strong><small>'+esc(person.role)+' · '+esc(person.status)+'</small></div>').join("");
+      if($("participant-list"))$("participant-list").innerHTML=transaction.participants.map(person=>'<div class="task-item"><strong>'+esc(person.display_name && !person.display_name.includes("@") ? person.display_name : "MREO participant")+'</strong><small>'+esc(person.role)+' · '+esc(person.status)+'</small></div>').join("");
       $("service-list").innerHTML=services.length?services.map(service=>'<article class="task-item"><strong>'+esc(service.service_type)+'</strong><small>'+esc(service.status)+'</small></article>').join(""):'<div class="empty-card"><h3>No connected service requests yet</h3><p>Ask your MREO representative in Messages to arrange the next step, or explore the separate illustrative walkthroughs below.</p></div>';
     }catch(error){$("workspace-attention").textContent=error.message;}
     finally{refreshing=false;}
