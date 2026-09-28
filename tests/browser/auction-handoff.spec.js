@@ -1,7 +1,7 @@
 import {test,expect} from "@playwright/test";
 
 test("closed auction hands the winning buyer into closing before sale completion",async({page})=>{
- await page.goto("/auction.html?id=demo-property&view=buyer");
+ await page.goto("/auction.html?id=demo-property&view=buyer&transaction=tx-demo-close");
  const controls=page.locator("#test-controls");
  await expect(controls).toBeVisible();
  if(!(await controls.getAttribute("open"))) await controls.locator("summary").click();
@@ -14,14 +14,38 @@ test("closed auction hands the winning buyer into closing before sale completion
  expect(href.searchParams.get("auction")).toBe("demo-property");
  expect(href.searchParams.get("role")).toBe("buyer");
  expect(href.searchParams.get("stage")).toBe("won");
+ expect(href.searchParams.get("entry")).toBe("auction");
+ expect(href.searchParams.get("workspaceTransaction")).toBe("tx-demo-close");
+ expect(href.searchParams.has("perspective")).toBe(false);
  expect(Number(href.searchParams.get("price"))).toBeGreaterThan(0);
  await workspace.click();
  await expect(page).toHaveURL(/coordination\.html\?/);
+ await expect(page.locator(".coordination-hero")).toBeHidden();
+ await expect(page.locator(".demo-control-strip")).toBeHidden();
+ await expect(page.locator(".demo-story")).toHaveCount(0);
+ await expect(page.locator("#auction-entry-toolbar")).toBeVisible();
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-demo-close&section=messages");
  await expect(page.locator("#coord-record-title")).toContainText("4218 Maple Ridge Drive");
  await expect(page.locator("#acquisition-heading")).toContainText("Seller acceptance and closing");
  await expect(page.getByRole("link",{name:"What comes next ↓"})).toBeVisible();
  await expect(page.locator('[data-service="title"]')).toBeVisible();
  await expect(page.getByRole("button",{name:/Download acquisition package/i})).toHaveCount(0);
+});
+
+test("an older winning-auction URL removes the demo wrapper and recovers its Messages workspace",async({page})=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"clerk-user"}),request:async(path)=>{
+   if(path==="/api/v1/transactions")return {transactions:[{id:"tx-frisco",title:"9014 Silver Creek Way, Frisco, TX 75035",viewer_role:"agent",property:{id:"demo-frisco",relatedAuctionId:"demo-frisco",demo:true}}]};
+   throw Error("Unexpected identity request: "+path);
+  }};` }));
+ await page.goto("/coordination.html?type=property&auction=demo-frisco&address=9014+Silver+Creek+Way%2C+Frisco%2C+TX+75035&role=buyer&demo=1&perspective=buyer&stage=won");
+ await expect(page.locator(".coordination-hero")).toBeHidden();
+ await expect(page.locator(".demo-story")).toHaveCount(0);
+ await expect(page.locator("#auction-entry-toolbar")).toBeVisible();
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-frisco&section=messages");
+ await expect.poll(()=>new URL(page.url()).searchParams.get("workspaceTransaction")).toBe("tx-frisco");
+ expect(new URL(page.url()).searchParams.has("perspective")).toBe(false);
 });
 
 test("seller can enter the shared closing workspace once the auction closes",async({page})=>{
