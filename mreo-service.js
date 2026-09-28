@@ -2,7 +2,12 @@
 "use strict";
 const C=globalThis.MreoCore,config=globalThis.MREO_CONFIG||{mode:"demo"};
 let connectionStatus=null;
-const demo=config.mode!=="connected";
+// Connected mode can coexist with the public illustrative auction. The
+// public landing and explicit flag keep sample data local to the browser and
+// never call the connected auction API.
+const pageQuery=new URLSearchParams(location.search);
+const publicAuctionLanding=/\/auction\.html$/.test(location.pathname)&&!location.search;
+const demo=config.mode!=="connected"||pageQuery.get("demo")==="1"||publicAuctionLanding;
 const root=location.pathname.slice(0,location.pathname.lastIndexOf("/")+1);
 const key="mreo:v3:"+root;
 const visibleAuction=a=>!!a&&!a.hidden&&a.id!=="video-property";

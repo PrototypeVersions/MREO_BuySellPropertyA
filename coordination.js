@@ -2,6 +2,7 @@
   "use strict";
 
   const params = new URLSearchParams(location.search);
+  const workspaceTransaction = params.get("workspaceTransaction") || "";
   const S = globalThis.MreoService;
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
@@ -185,6 +186,7 @@
 
   function query(extra = {}) {
     const out = new URLSearchParams();
+    if (workspaceTransaction) out.set("workspaceTransaction", workspaceTransaction);
     if (context.kind) out.set("type", context.kind);
     if (context.auction) out.set("auction", context.auction);
     if (context.address) out.set("address", context.address);
@@ -195,6 +197,7 @@
     if (context.stage) out.set("stage", context.stage);
     ["accountName","accountEmail","accountPhone","purchaseMethod","purchaseTimeline","accountRole","mediaKey"].forEach((key) => { const value = params.get(key); if (value) out.set(key, value); });
     Object.entries(extra).forEach(([key, value]) => value !== undefined && value !== null && value !== "" && out.set(key, value));
+    if (workspaceTransaction && extra.service) out.set("transaction", workspaceTransaction);
     return out.toString();
   }
 

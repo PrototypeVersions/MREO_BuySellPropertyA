@@ -26,6 +26,26 @@ async function connected(page,{error=false,canSign=true}={}) {
   await page.goto("/coordination.html?transaction=tx&section=files");
 }
 
+async function connectedSelfSigning(page) {
+  await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG={mode:"connected",apiBase:"https://api.mreo.test"};'}));
+  await page.route("https://api.mreo.test/**",route=>route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true}}));
+  await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+    window.selfSignRequests=[];window.recordStatus="available";
+    window.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"buyer"}),request:async(path,options={})=>{
+      if(path==="/api/v1/transactions/tx")return {id:"tx",title:"Riverside Terrace",viewerRole:"buyer",kind:"property",status:"active",participants:[{id:"buyer",role:"buyer",status:"active"}]};
+      if(path.endsWith("/documents")){if(options.method==="POST")throw Error("Unexpected upload");return {documents:[{id:"own-pdf",filename:"My agreement.pdf",visibility:"buyer_agent",status:recordStatus,content_type:"application/pdf",size_bytes:100,created_at:1,can_request_signature:recordStatus==="available",request_signature_role:"buyer",can_sign:recordStatus==="signature_pending",can_check_signing:recordStatus==="signature_pending",signing_test_mode:true}]};}
+      if(path.endsWith("/documents/own-pdf/signatures")){selfSignRequests.push(JSON.parse(options.body));recordStatus="signature_pending";return {status:"signature_pending",testMode:true};}
+      if(path.endsWith("/documents/own-pdf/signing-session"))return {url:"https://www.signwell.com/docs/self-sign-test",testMode:true};
+      if(path.endsWith("/messages")||path.includes("/messages?"))return {messages:[]};
+      if(path.endsWith("/tasks"))return {tasks:[]};
+      if(path.endsWith("/events"))return {events:[]};
+      if(path.endsWith("/services"))return {services:[]};
+      throw Error("Unused test route: "+path);
+    }};` }));
+  await page.route("https://static.signwell.com/assets/embedded.js",route=>route.fulfill({contentType:"application/javascript",body:'window.SignWellEmbed=class {constructor(options){window.signwellOptions=options;}open(){window.embedOpened=true;}close(){}};'}));
+  await page.goto("/coordination.html?transaction=tx&section=messages");
+}
+
 test("a sample signature requires a name and consent and remains attached after reload",async({page},info)=>{
   await page.goto("/demo-case.html?perspective=buyer&view=messages");
   await page.getByRole("button",{name:"Add sample agreement"}).click();
@@ -59,6 +79,15 @@ test("connected signing embeds SignWell and only a server confirmation completes
   await expect(page.getByRole("button",{name:"View signed test PDF"})).toBeVisible();
   await expect(page.locator("#workspace-signing-notice")).toContainText("Signing is complete");
   expect(await page.evaluate(()=>signingCalls)).toEqual(["session","status","status"]);expect(errors).toEqual([]);
+});
+
+test("an uploaded PDF can start embedded self-signing from its message card",async({page})=>{
+  await connectedSelfSigning(page);
+  await expect(page.getByRole("heading",{name:"Upload a PDF or document"})).toBeVisible();
+  await page.getByRole("button",{name:"Sign this PDF"}).click();
+  await expect.poll(()=>page.evaluate(()=>window.embedOpened)).toBe(true);
+  expect(await page.evaluate(()=>selfSignRequests)).toEqual([{self:true,role:"buyer"}]);
+  await expect(page.getByRole("button",{name:"Review & Sign"})).toBeVisible();
 });
 
 test("signing errors in Files show a useful message without exposing email addresses",async({page})=>{

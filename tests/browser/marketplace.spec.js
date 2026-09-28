@@ -79,11 +79,11 @@ test("every sample property opens its own auction through buyer participation",a
    await page.locator("#buyer-email").fill("property-buyer@example.com");
    await page.locator("#buyer-confirmation").check();
    await page.getByRole("button",{name:"Submit Buyer Interest",exact:true}).click();
-   await expect(page).toHaveURL(/payment\.html\?role=buyer$/);
+   await expect(page).toHaveURL(/payment\.html\?role=buyer&demo=1$/);
    if(index===0)await page.locator("#payment-consent").check();
    else await expect(page.locator("#payment-submit")).toHaveText("Auction →");
    await page.locator("#payment-submit").click();
-   await expect(page).toHaveURL(new RegExp("auction\\.html\\?id="+id+"&view=buyer$"));
+   await expect(page).toHaveURL(new RegExp("auction\\.html\\?id="+id+"&view=buyer&demo=1$"));
    await expect(page.locator("#auction-select")).toHaveValue(id);
    await expect(page.locator("#auction-select option:checked")).toHaveText(address);
    await expect(page.locator("#auction-title")).toHaveText(address);

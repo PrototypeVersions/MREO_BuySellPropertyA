@@ -31,19 +31,29 @@ const remoteComplete = document => document.status === "completed" || document.c
 
 export async function createSignatureRequest(request, env, user, transactionId, documentId) {
   const access = await participation(env, transactionId, user);
-  if (!access.staff) throw new HttpError("Only an MREO agent can send documents for signature.", 403, "agent_required");
   const document = await getDocument(env, transactionId, documentId);
+  if (!canSeeDocument(document, access)) throw new HttpError("Document not found.", 404, "not_found");
   if (document.esign_external_id || document.status !== "available") throw new HttpError("This document is already being prepared or has been sent for signature.", 409, "already_sent");
+  if (document.content_type !== "application/pdf") throw new HttpError("Only PDF documents can be sent for electronic signature.", 415, "esign_pdf_required");
   const data = await bodyJSON(request), requested = Array.isArray(data.recipients) ? data.recipients : [];
-  if (!requested.length || requested.length > 8) throw new HttpError("Choose between one and eight transaction participants to sign.", 400, "recipient_required");
   const participants = await all(env, `SELECT p.user_id, p.role, u.email, u.display_name,
     EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role IN ('agent','admin')) is_staff
     FROM transaction_participants p JOIN users u ON u.id = p.user_id WHERE p.transaction_id = ? AND p.status = 'active'`, transactionId);
   const unique = new Map();
-  for (const selected of requested) {
-    const person = participants.find(person => person.role === selected.role && (selected.userId ? person.user_id === selected.userId : person.email?.toLowerCase() === String(selected.email || "").toLowerCase()));
-    if (!person?.email || !canSeeDocument(document,{role:person.role,staff:!!person.is_staff})) throw new HttpError("Choose an active participant who has access to this document.", 400, "invalid_signer");
-    if (!unique.has(person.email.toLowerCase())) unique.set(person.email.toLowerCase(), person);
+  if (data.self === true) {
+    if (document.uploaded_by !== user.id) throw new HttpError("You can only start signing for a PDF that you uploaded.", 403, "self_sign_forbidden");
+    const requestedRole = clean(data.role, 20);
+    const person = participants.find(person => person.user_id === user.id && (!requestedRole || person.role === requestedRole) && canSeeDocument(document,{role:person.role,staff:false}));
+    if (!person?.email) throw new HttpError("Your active transaction role cannot sign this document.", 403, "self_sign_forbidden");
+    unique.set(person.email.toLowerCase(), person);
+  } else {
+    if (!access.staff) throw new HttpError("Only an MREO agent can send documents to other participants for signature.", 403, "agent_required");
+    if (!requested.length || requested.length > 8) throw new HttpError("Choose between one and eight transaction participants to sign.", 400, "recipient_required");
+    for (const selected of requested) {
+      const person = participants.find(person => person.role === selected.role && (selected.userId ? person.user_id === selected.userId : person.email?.toLowerCase() === String(selected.email || "").toLowerCase()));
+      if (!person?.email || !canSeeDocument(document,{role:person.role,staff:!!person.is_staff})) throw new HttpError("Choose an active participant who has access to this document.", 400, "invalid_signer");
+      if (!unique.has(person.email.toLowerCase())) unique.set(person.email.toLowerCase(), person);
+    }
   }
   const recipients = [...unique.values()].map((person,index) => ({...person,id:String(index+1),name:person.display_name && !person.display_name.includes("@") ? person.display_name : "MREO " + person.role}));
   const stored = await env.DOCUMENTS?.get(document.object_key);

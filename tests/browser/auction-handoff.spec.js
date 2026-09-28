@@ -54,7 +54,7 @@ test("Fort Worth auction carries the winning buyer profile and property image in
  await page.locator("#buyer-timeline").selectOption("Within 30 days");
  await page.locator("#buyer-confirmation").check();
  await page.getByRole("button",{name:"Submit Buyer Interest",exact:true}).click();
- await expect(page).toHaveURL(/payment\.html\?role=buyer$/);
+ await expect(page).toHaveURL(/payment\.html\?role=buyer&demo=1$/);
  await page.locator("#payment-consent").check();
 
  // Create the pre-auction planning record directly to reproduce a stale Coordination state.

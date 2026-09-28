@@ -57,9 +57,10 @@
     if (!instance) throw Error("MREO sign-in is not configured yet.");
     instance.openSignIn({forceRedirectUrl:afterSignInUrl, signUpForceRedirectUrl:afterSignInUrl});
   }
-  async function mountUserButton(element) { const instance = await init(); if (instance?.isSignedIn && element) instance.mountUserButton(element); return !!instance?.isSignedIn; }
+  const signOutReturn = () => new URL(location.pathname + location.search, location.origin).href;
+  async function mountUserButton(element) { const instance = await init(); if (instance?.isSignedIn && element) instance.mountUserButton(element,{afterSignOutUrl:signOutReturn()}); return !!instance?.isSignedIn; }
   const currentUser = async () => (await init())?.user || null;
-  const signOut = async () => (await init())?.signOut();
+  const signOut = async () => (await init())?.signOut({redirectUrl:signOutReturn()});
   const liveUrl = path => apiBase().replace(/^http/, "ws") + path;
 
   globalThis.MreoIdentity = {connected, init, getConfig, getToken, request, openSignIn, mountUserButton, currentUser, signOut, liveUrl, publicError};
