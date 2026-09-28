@@ -9,7 +9,7 @@
       this.timeline = timeline;
       this.base = `/api/v1/transactions/${encodeURIComponent(transaction.id)}`;
       const agent = transaction.viewerRole === "agent";
-      root.innerHTML = `<details class="document-composer"><summary>Attach a document or PDF</summary><form class="upload-form"><label>Choose a transaction document<input type="file" name="file" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.csv,.txt"></label>${agent ? `<label>Who may see it<select name="visibility"><option value="thread">This conversation</option><option value="participants">All transaction participants</option><option value="buyer_agent">Buyer and MREO Agent</option><option value="seller_agent">Seller and MREO Agent</option><option value="agent_provider">Provider and MREO Agent</option><option value="agent_only">MREO Agent only</option></select></label>` : `<input type="hidden" name="visibility" value="thread">`}<p class="upload-note">The file will appear at this point in the conversation, where it can be downloaded, reviewed, or sent for signature.</p><button class="small-button primary" type="submit">Add to conversation</button></form></details>`;
+      root.innerHTML = `<section class="document-composer" aria-labelledby="document-composer-title"><div><p class="section-label">Documents in this conversation</p><h3 id="document-composer-title">Upload a PDF or document</h3><p class="upload-note">Your file appears in the message timeline. If it is a PDF you uploaded, you can open and sign it there without leaving this workspace.</p></div><form class="upload-form"><label>Choose from your computer<input type="file" name="file" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.csv,.txt"></label>${agent ? `<label>Who may see it<select name="visibility"><option value="thread">This conversation</option><option value="participants">All transaction participants</option><option value="buyer_agent">Buyer and MREO Agent</option><option value="seller_agent">Seller and MREO Agent</option><option value="agent_provider">Provider and MREO Agent</option><option value="agent_only">MREO Agent only</option></select></label>` : `<input type="hidden" name="visibility" value="thread">`}<button class="small-button primary" type="submit">Upload to messages</button></form></section>`;
       this.form = root.querySelector("form");
       this.form.onsubmit = event => this.upload(event);
       timeline.root.addEventListener("mreo:thread-selected", () => this.form.reset());
@@ -63,7 +63,7 @@
     }
 
     async click(event) {
-      const download = event.target.closest("[data-download]"), sign = event.target.closest("[data-sign]"), send = event.target.closest("[data-send-signature]"), check = event.target.closest("[data-check-signing]");
+      const download = event.target.closest("[data-download]"), sign = event.target.closest("[data-sign]"), selfSign = event.target.closest("[data-self-sign]"), send = event.target.closest("[data-send-signature]"), check = event.target.closest("[data-check-signing]");
       try {
         if (download) {
           download.disabled = true;
@@ -76,6 +76,14 @@
         if (sign) {
           sign.disabled = true;
           await MreoSigning.open(this.signingOptions(sign.dataset.sign));sign.disabled = false;
+        }
+        if (selfSign) {
+          selfSign.disabled = true;
+          const document = this.documents.find(item => item.id === selfSign.dataset.selfSign);
+          await MreoIdentity.request(`${this.base}/documents/${encodeURIComponent(selfSign.dataset.selfSign)}/signatures`, {method:"POST", body:JSON.stringify({self:true,role:document?.request_signature_role || undefined})});
+          await this.refresh();
+          dispatchEvent(new CustomEvent("mreo:workspace-changed"));
+          await MreoSigning.open(this.signingOptions(selfSign.dataset.selfSign));
         }
         if(check){check.disabled=true;await MreoSigning.check(this.signingOptions(check.dataset.checkSigning));check.disabled=false;}
         if (send) {
@@ -92,6 +100,7 @@
       } catch (error) {
         if (download) download.disabled = false;
         if (sign) sign.disabled = false;
+        if (selfSign) selfSign.disabled = false;
         if (send) send.disabled = false;
         if (check) check.disabled = false;
         this.notice(MreoSigning.safeError(error),true);

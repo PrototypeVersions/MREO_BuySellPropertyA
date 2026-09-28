@@ -74,8 +74,10 @@ test("the simplified property menu is consistent throughout the site",async({pag
  for(const path of ["index.html","buyer.html","seller.html","my-properties.html","experience.html","demo-case.html","coordination.html?role=provider","coordination-service.html","coordination-provider-job.html","coordination-response.html","profile.html","agent.html","auction.html","payment.html","properties.html","property.html","portfolios.html","portfolio.html","turkey-property.html"]){
   await page.goto("/"+path,{waitUntil:"domcontentloaded"});
   const navigation=page.getByRole("navigation",{name:"Main navigation"});
-  await expect(navigation.getByRole("link")).toHaveText(["Buy","Sell","My properties","Auctions","My MREO"]);
+  await expect(navigation.getByRole("link")).toHaveText(["Buy","Sell","My properties","Auctions","Coordinate","My MREO"]);
   await expect(navigation.getByRole("link",{name:"My properties",exact:true})).toHaveAttribute("href","my-properties.html");
+  await expect(navigation.getByRole("link",{name:"Auctions",exact:true})).toHaveAttribute("href","auction.html?demo=1");
+  await expect(navigation.getByRole("link",{name:"Coordinate",exact:true})).toHaveAttribute("href","coordination.html");
   expect(await navigation.evaluate(element=>element.getBoundingClientRect().right<=innerWidth+1)).toBe(true);
  }
 });
@@ -97,11 +99,14 @@ test("connected Messages Files and Coordination share records without mixing par
   }};`}));
  await page.goto("/coordination.html?transaction=tx-test");
  await expect(page.locator("#connected-transaction-shell > .back-link")).toHaveAttribute("href","my-properties.html");
+ await area(page,"Auction").click();
+ await expect(page.getByRole("heading",{name:"No auction linked yet"})).toBeVisible();
+ await expect(page.getByRole("link",{name:"Open full Auction page →"})).toHaveAttribute("href",/auction\.html\?transaction=tx-test&demo=1/);
+ await area(page,"Messages").click();
  const feed=page.locator(".conversation-feed");
  await expect(feed).toContainText("Buyer private message");await expect(feed).not.toContainText("Seller private");
  await expect(feed).not.toContainText("Seller signing update");
  await page.getByRole("textbox",{name:"Message",exact:true}).fill("Unsent buyer draft");
- await page.getByText("Attach a document or PDF",{exact:true}).click();
  await page.locator('input[type="file"]').setInputFiles({name:"Buyer draft.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.4 sample")});
  await page.getByRole("button",{name:"Seller ↔ MREO"}).click();
  await expect(page.getByRole("textbox",{name:"Message",exact:true})).toHaveValue("");
@@ -112,7 +117,7 @@ test("connected Messages Files and Coordination share records without mixing par
  await feed.locator('[data-download="seller-file"]').click();
  expect((await connectedDownload).suggestedFilename()).toBe("Seller private.pdf");
  await page.locator('input[type="file"]').setInputFiles({name:"New seller document.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.4 sample")});
- await page.getByRole("button",{name:"Add to conversation"}).click();
+ await page.getByRole("button",{name:"Upload to messages"}).click();
  await expect(feed).toContainText("New seller document.pdf");
  await page.getByRole("button",{name:"Buyer ↔ MREO"}).click();
  await expect(page.getByRole("textbox",{name:"Message",exact:true})).toHaveValue("Unsent buyer draft");
@@ -120,5 +125,6 @@ test("connected Messages Files and Coordination share records without mixing par
  await page.screenshot({path:info.outputPath("connected-messages.png"),fullPage:true});await noOverflow(page);
  await area(page,"Files").click();await expect(page.locator("#file-index [data-document-id]")).toHaveCount(3);
  await area(page,"Coordination").click();await expect(page.getByRole("heading",{name:"No connected service requests yet"})).toBeVisible();
+ await expect(page.getByRole("link",{name:"Open full Coordinate page →"})).toHaveAttribute("href",/workspaceTransaction=tx-test/);
  await expect(page.getByRole("textbox",{name:"Message",exact:true})).toBeHidden();await noOverflow(page);
 });

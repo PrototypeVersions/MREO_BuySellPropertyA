@@ -56,6 +56,32 @@ test("signing binds active recipients, deduplicates roles and lets a staff buyer
   assert.equal((await f.send()).status,409);
 });
 
+test("a participant can start embedded signing for their own uploaded PDF",async t=>{
+  const f=await fixture();let payload;
+  provider(t,(url,options)=>{if(options.method==="POST")payload=JSON.parse(options.body);return Response.json(remote());});
+  const before=await f.call("/documents");
+  assert.equal(before.body.documents[0].can_request_signature,true);
+  assert.equal(before.body.documents[0].request_signature_role,"buyer");
+  const created=await f.call("/documents/doc/signatures","alice","POST",{self:true,role:"buyer"});
+  assert.equal(created.status,201);
+  assert.deepEqual(payload.recipients,[{id:"1",name:"alice",email:"alice@example.com"}]);
+  const after=await f.call("/documents");
+  assert.equal(after.body.documents[0].can_request_signature,false);
+  assert.equal(after.body.documents[0].can_sign,true);
+  const session=await f.call("/documents/doc/signing-session","alice","POST",{});
+  assert.equal(session.status,200);
+  assert.equal(session.body.url,"https://www.signwell.com/docs/only-alice");
+});
+
+test("self-signing cannot claim another participant's upload or a non-PDF",async t=>{
+  const other=await fixture();other.e.DB.sqlite.prepare("UPDATE documents SET visibility='participants' WHERE id='doc'").run();
+  let calls=0;provider(t,()=>{calls++;return Response.json(remote());});
+  assert.equal((await other.call("/documents/doc/signatures","bob","POST",{self:true,role:"seller"})).status,403);
+  const nonPdf=await fixture();nonPdf.e.DB.sqlite.prepare("UPDATE documents SET content_type='text/plain' WHERE id='doc'").run();
+  assert.equal((await nonPdf.call("/documents/doc/signatures","alice","POST",{self:true,role:"buyer"})).status,415);
+  assert.equal(calls,0);
+});
+
 test("signature requests cannot select an outsider or someone outside the document's sharing scope",async t=>{
   const f=await fixture();let calls=0;provider(t,()=>{calls++;return Response.json(remote());});
   for(const role of ["seller","buyer"]){

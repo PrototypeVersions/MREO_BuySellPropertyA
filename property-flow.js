@@ -54,6 +54,7 @@
         const value = source.searchParams.get(key);
         if (value) detail.searchParams.set(key, value);
       });
+      if (source.searchParams.get("demo") === "1" || source.searchParams.get("auction")?.startsWith("demo-")) detail.searchParams.set("demo", "1");
     } else {
       const auctionId = source.searchParams.get("id");
       const address = text("h2", row);
@@ -234,6 +235,7 @@
       const value = params.get(key);
       if (value) buyer.set(key, value);
     });
+    if (params.get("demo") === "1" || params.get("auction")?.startsWith("demo-")) buyer.set("demo", "1");
     document.getElementById("property-prepare-interest").href = "buyer.html?" + buyer.toString();
 
     const mediaKey = params.get("mediaKey");

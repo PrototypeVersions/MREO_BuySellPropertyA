@@ -19,7 +19,7 @@
   }
 
   async function buildWorkspaceUrl(auction, view, amount, account) {
-    if (globalThis.MreoIdentity?.connected()) {
+    if (!S.demo && globalThis.MreoIdentity?.connected()) {
       await MreoIdentity.init();
       if (!await MreoIdentity.currentUser()) return {url:"#", requiresSignIn:true};
       const {handoffToken} = await S.handoff(auction.id, view);

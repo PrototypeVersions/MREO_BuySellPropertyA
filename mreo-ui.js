@@ -2,6 +2,7 @@
 "use strict";
 const C=globalThis.MreoCore,S=globalThis.MreoService,$=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search);
+const preserveDemo=query=>{if(params.get("demo")==="1")query.set("demo","1");return query;};
 const cash=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(v||0);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let uploadedRows=[],selectedMediaFiles=[],uploadPromise=null,xlsxPromise=null,readyPromise=Promise.resolve();
@@ -101,13 +102,13 @@ async function submitSeller(){
  const submission={title,kind:portfolio?"portfolio":"property",minimum:C.money(field("seller-minimum")),days:Number(field("auction-days")),portfolio:portfolio?uploadedRows:[],details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))};
  const account=await S.register("seller",{name:field("seller-name"),email:field("seller-email")},submission);
  const mediaFiles=selectedMediaFiles;if(!portfolio&&mediaFiles.length&&account?.submission?.draftId)await S.saveMedia(account.submission.draftId,mediaFiles);
- location.href="payment.html?role=seller";
+ location.href="payment.html?"+preserveDemo(new URLSearchParams({role:"seller"})).toString();
 }
 async function submitBuyer(){
  await readyPromise;
  const form=$("buyer-form");if(!form.reportValidity())return;
  await S.register("buyer",{name:field("buyer-name"),email:field("buyer-email")},{title:field("buyer-offer-address"),auctionId:params.get("auction")||"",mediaKey:params.get("mediaKey")||"",image:params.get("image")||"",proposedOffer:field("buyer-offer-amount"),details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))});
- location.href="payment.html?role=buyer";
+ location.href="payment.html?"+preserveDemo(new URLSearchParams({role:"buyer"})).toString();
 }
 async function payment(){
  if(!$("payment-submit"))return;
@@ -120,6 +121,7 @@ async function payment(){
  if(coordinateNote)coordinateNote.hidden=role!=="seller";
  function coordinateHref(account){
   const q=new URLSearchParams({role,accountRole:role,stage:"planning"});
+  preserveDemo(q);
   if(account?.name)q.set("accountName",account.name);
   if(account?.email)q.set("accountEmail",account.email);
   const submission=account?.submission||{},details=submission.details||{};
@@ -159,15 +161,15 @@ async function payment(){
  }
  let a=await refresh();
  if(params.get("cancelled"))message("payment-message","Checkout was cancelled. No auction access has been activated.");
- if(params.get("session_id")&&!S.demo){button.disabled=true;message("payment-message","Verifying payment…");try{await S.confirm(role,params.get("session_id"));history.replaceState(null,"","payment.html?role="+role);a=await refresh();message("payment-message",a.creditCents>=100?"Payment verified. Your $1 participation credit is ready.":"Payment is still pending. Refresh shortly to check again.");}catch(e){message("payment-message",e.message,true);await refresh();}}
+ if(params.get("session_id")&&!S.demo){button.disabled=true;message("payment-message","Verifying payment…");try{await S.confirm(role,params.get("session_id"));history.replaceState(null,"","payment.html?"+preserveDemo(new URLSearchParams({role})).toString());a=await refresh();message("payment-message",a.creditCents>=100?"Payment verified. Your $1 participation credit is ready.":"Payment is still pending. Refresh shortly to check again.");}catch(e){message("payment-message",e.message,true);await refresh();}}
  button.addEventListener("click",()=>busy(button,async()=>{try{
  const account=await ensureParticipation();if(!account)return;
  const active=await S.activate(role);
  let transaction=null;
  if(active.handoffToken&&globalThis.MreoIdentity?.connected())transaction=await MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({handoffToken:active.handoffToken})});
- if(active.auctionId){const q=new URLSearchParams({id:active.auctionId,view:role});if(transaction?.id)q.set("transaction",transaction.id);location.href="auction.html?"+q.toString();}
+ if(active.auctionId){const q=preserveDemo(new URLSearchParams({id:active.auctionId,view:role}));if(transaction?.id)q.set("transaction",transaction.id);location.href="auction.html?"+q.toString();}
  else if(transaction?.id)location.href="auction.html?pending=1&transaction="+encodeURIComponent(transaction.id);
- else location.href="auction.html?view="+role+"&select=1"+(account.submission?.title?"&address="+encodeURIComponent(account.submission.title):"");
+ else {const q=preserveDemo(new URLSearchParams({view:role,select:"1"}));if(account.submission?.title)q.set("address",account.submission.title);location.href="auction.html?"+q.toString();}
  }catch(e){message("payment-message",e.message,true);}}));
  if(coordinate)coordinate.addEventListener("click",async event=>{
   event.preventDefault();
@@ -190,8 +192,11 @@ async function portfolio(){
  $("portfolio-count").textContent=String(rows.length);$("portfolio-value").textContent=cash(total.value);$("portfolio-price").textContent=cash(auction&&!auction.example?auction.reserve:total.price);$("portfolio-fee").textContent=cash(portfolioFee);$("portfolio-fee-note").textContent=cash(C.FEE)+" × "+rows.length+" properties";
  if(auction&&!auction.example){$("portfolio-price-label").textContent="Required portfolio bid";$("portfolio-pricing-note").textContent="Seller minimum plus the "+cash(portfolioFee)+" MREO fee ("+cash(C.FEE)+" per property)";}
  const title=auction?.title||"Illustrative REO portfolio · 150 properties";
- $("portfolio-interest").href="buyer.html?auction="+encodeURIComponent(listingId)+"&address="+encodeURIComponent(title)+"&price="+Math.round(auction?.reserve||total.price);
- $("portfolio-auction").href="auction.html?id="+encodeURIComponent(listingId);
+ const interestQuery=new URLSearchParams({auction:listingId,address:title,price:String(Math.round(auction?.reserve||total.price))});
+ const auctionQuery=new URLSearchParams({id:listingId});
+ if(String(listingId).startsWith("demo-")||params.get("demo")==="1"){interestQuery.set("demo","1");auctionQuery.set("demo","1");}
+ $("portfolio-interest").href="buyer.html?"+interestQuery.toString();
+ $("portfolio-auction").href="auction.html?"+auctionQuery.toString();
  if(!S.demo&&!auction){$("portfolio-interest").href="buyer.html?address="+encodeURIComponent(title);$("portfolio-auction").hidden=true;}
  if(auction&&!auction.example){
  $("portfolio-csv").href=URL.createObjectURL(new Blob([C.csv(C.portfolioMatrix(rows))],{type:"text/csv;charset=utf-8"}));$("portfolio-csv").download="MREO-portfolio.csv";
@@ -282,7 +287,7 @@ async function auctionPage(){
  const output=resultHTML(a,account,isSeller),result=$("auction-result");result.hidden=!output;if(result.innerHTML!==output)result.innerHTML=output;
  $("buyer-identity").textContent=account?(account.name+" · "+(S.demo?"test ":"")+"participation credit $"+((account.creditCents||0)/100).toFixed(2)):"Complete buyer interest and the $1 participation step to bid.";
  const eligible=account?.role==="buyer"&&account.creditCents>=100;
- $("bid-form").hidden=!eligible||a.status!=="active";$("bid-register").hidden=!!eligible||a.status!=="active";$("bid-register").href="buyer.html?auction="+encodeURIComponent(a.id)+"&address="+encodeURIComponent(a.title);
+ $("bid-form").hidden=!eligible||a.status!=="active";$("bid-register").hidden=!!eligible||a.status!=="active";$("bid-register").href="buyer.html?"+preserveDemo(new URLSearchParams({auction:a.id,address:a.title})).toString();
  $("buyer-status").textContent=a.status==="active"?(a.viewerOutcome==="submitted"?"Your bid has been received. Your result will be shown when the auction ends.":"Your submitted interest is not automatically placed as a bid."):"";
  $("seller-private").hidden=view!=="seller"||!isSeller;$("seller-access-message").textContent=isSeller?"A winning bid must cover your minimum plus the MREO fee. An auction result does not itself charge the success fee.":"Only the listing seller can view all bids and the seller’s proceeds. "+(S.demo?"Choose Test Seller above to preview this listing’s seller view.":"Use the same browser tab used to submit this listing.");
  if(view==="seller"&&isSeller){$("seller-net-min").textContent=cash(a.minimum);$("seller-reserve").textContent=cash(a.reserve);$("seller-proceeds").textContent=top?cash(summary.proceeds):"—";$("seller-additional").textContent=cash(summary.additional);$("seller-fee-due").textContent=cash(summary.feeDue);$("complete-sale").hidden=!S.demo||!a.winnerId||a.saleCompleted;}
@@ -293,11 +298,11 @@ async function auctionPage(){
  }catch(e){if(selectionChanged())return;last=null;$("auction-content").hidden=true;message("auction-message",e.message,true);}finally{refreshing=false;if(selectionChanged())refresh();}
  }
  for(const role of ["buyer","seller"])$("view-"+role).addEventListener("click",()=>{view=role;last=null;$("auction-content").hidden=true;setView();refresh();});
- select.addEventListener("change",()=>{id=select.value;last=null;$("auction-content").hidden=true;$("auction-message").hidden=true;$("bid-amount").value="";history.replaceState(null,"","auction.html?id="+encodeURIComponent(id)+"&view="+view);refresh();});
+ select.addEventListener("change",()=>{id=select.value;last=null;$("auction-content").hidden=true;$("auction-message").hidden=true;$("bid-amount").value="";const q=preserveDemo(new URLSearchParams({id,view}));if(params.get("transaction"))q.set("transaction",params.get("transaction"));history.replaceState(null,"","auction.html?"+q.toString());refresh();});
  $("test-actor").addEventListener("change",()=>{actor=field("test-actor");last=null;$("auction-content").hidden=true;$("bid-amount").value="";if(actor==="test-seller")view="seller";else if(actor)view="buyer";setView();refresh();});
  $("bid-form").addEventListener("submit",async e=>{e.preventDefault();if(!$("bid-form").reportValidity())return;const button=e.submitter||$("bid-form").querySelector("button");await busy(button,async()=>{try{await S.bid(id,field("bid-amount"),actor);$("bid-consent").checked=false;message("auction-message","Bid placed successfully.");await refresh();}catch(err){message("auction-message",err.message,true);await refresh();}});});
  for(const [button,method,confirmation] of [["finish-auction","finish",false],["restart-auction","restart",true],["complete-sale","completeSale",false]])$(button).addEventListener("click",()=>busy($(button),async()=>{if(confirmation&&!confirm("Restart this test auction and clear its bids?"))return;try{await S[method](id);await refresh();}catch(e){message("auction-message",e.message,true);}}));
- $("reset-demo").addEventListener("click",async()=>{if(confirm("Clear all MREO test data in this browser, including buyer/seller accounts, uploaded property media and portfolio data, listings, bids, and Coordination activity?")){await S.clear();location.href="auction.html";}});
+ $("reset-demo").addEventListener("click",async()=>{if(confirm("Clear all MREO test data in this browser, including buyer/seller accounts, uploaded property media and portfolio data, listings, bids, and Coordination activity?")){await S.clear();location.href="auction.html?demo=1";}});
  setView();const hasSelection=await loadList();
  if(S.demo&&!S.session(view)){actor=view==="seller"?"test-seller":"";$("test-actor").value=actor;}
  if(hasSelection)await refresh();setInterval(tick,1000);setInterval(()=>{if(!document.hidden)refresh();},5000);window.addEventListener("storage",e=>{if(e.key===S.key){loadList().then(refresh).catch(err=>message("auction-message",err.message,true));}});document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh();});

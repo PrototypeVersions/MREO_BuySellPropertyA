@@ -21,10 +21,19 @@ export async function listDocuments(env, user, transactionId) {
   const access = await participation(env, transactionId, user);
   const rows = await all(env, "SELECT * FROM documents WHERE transaction_id = ? ORDER BY created_at DESC", transactionId);
   const recipients = await signingRecipients(env, user, transactionId);
+  // A staff member can also participate as a buyer or seller. Keep those
+  // participant roles separate from their staff-wide read access so that a
+  // document can only be self-signed in a role that was actually granted.
+  const participantRoles = await all(env, `SELECT role FROM transaction_participants
+    WHERE transaction_id = ? AND user_id = ? AND status = 'active'
+    ORDER BY CASE role WHEN 'buyer' THEN 1 WHEN 'seller' THEN 2 WHEN 'provider' THEN 3 ELSE 4 END`, transactionId, user.id);
   return rows.filter(row => canSeeDocument(row, access)).map(({object_key, completed_object_key, esign_external_id, ...row}) => {
     const signer = recipients.find(recipient => recipient.document_id === row.id);
+    const signatureRole = participantRoles.find(person => canSeeDocument(row, {role:person.role, staff:false}))?.role || null;
     return {...row, can_sign:row.status === "signature_pending" && !!signer && !["signed","declined"].includes(signer.status),
-      signer_status:signer?.status || null, can_check_signing:!!esign_external_id && (access.staff || !!signer), signing_test_mode:env.SIGNWELL_TEST_MODE !== "false"};
+      signer_status:signer?.status || null, can_check_signing:!!esign_external_id && (access.staff || !!signer),
+      can_request_signature:row.status === "available" && row.content_type === "application/pdf" && row.uploaded_by === user.id && !!signatureRole,
+      request_signature_role:signatureRole, signing_test_mode:env.SIGNWELL_TEST_MODE !== "false"};
   });
 }
 
