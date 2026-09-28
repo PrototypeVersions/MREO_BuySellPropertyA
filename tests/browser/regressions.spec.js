@@ -28,6 +28,9 @@ test("My MREO gives Clerk a valid return page for sign-out",async({page})=>{
       signOut:async options=>{window.directSignOutOptions=options;}};` }));
   await page.goto("/profile.html?from=account");
   await expect(page.locator("#profile-app")).toBeVisible();
+  const accountSections=page.getByRole("navigation",{name:"My MREO sections"});
+  await expect(accountSections.getByRole("button")).toHaveText(["Active workspaces","Action needed","Messages","Documents","Past workspaces"]);
+  await expect(accountSections.getByRole("link")).toHaveCount(0);
   const current=page.url();
   expect(await page.evaluate(()=>window.clerkLoadOptions.afterSignOutUrl)).toBe(current);
   expect(await page.evaluate(()=>window.userButtonOptions.afterSignOutUrl)).toBe(current);
