@@ -10,9 +10,9 @@
   const root=document.createElement("section");root.id="connected-transaction-shell";root.className="transaction-app";main.prepend(root);
   root.innerHTML='<div id="transaction-loading" class="setup-card">Opening secure property workspace…</div>';
   const base="/api/v1/transactions/"+encodeURIComponent(transactionId);
-  const outcomeLabel=value=>({watching:"No bid submitted",submitted:"Bid submitted",won:"Winning bid",lost:"Bid did not win","reserve-not-met":"Reserve not met","not-participating":"No bid submitted"}[value]||"No bid activity");
+  const buyerResult=value=>({won:"You won",lost:"You did not win","reserve-not-met":"Reserve was not met",watching:"No bid submitted",submitted:"Bid submitted","not-participating":"No bid submitted"}[value]||"No bid activity");
   function updateAuctionSummary(result,role){
-    const state=$("auction-summary-state"),activity=$("auction-summary-activity"),timing=$("auction-summary-timing"),note=$("auction-summary-note");
+    const state=$("auction-summary-state"),activity=$("auction-summary-activity"),activityLabel=$("auction-summary-activity-label"),timing=$("auction-summary-timing"),note=$("auction-summary-note");
     if(!state||!activity||!timing)return;
     const auction=result?.auction;
     if(!auction){
@@ -20,16 +20,31 @@
       if(result?.error&&note)note.textContent="The live auction summary is temporarily unavailable. Open the Auction page to try again.";
       return;
     }
+    const accountRole=["buyer","seller"].includes(result?.account?.role)?result.account.role:role;
+    const total=Number(auction.bidCount)||0;
+    const ownBids=(auction.bids||[]).filter(bid=>!String(bid.id||"").startsWith(auction.id+"-seed-"));
     state.textContent=auction.status==="active"?"Open":"Closed";
-    activity.textContent=role==="seller"?String(auction.bidCount||0)+" bid"+(Number(auction.bidCount)===1?"":"s")+" received":role==="buyer"?outcomeLabel(auction.viewerOutcome):String(auction.bidCount||0)+" private bid"+(Number(auction.bidCount)===1?"":"s");
-    timing.textContent=auction.status==="active"&&auction.endsAt?"Closes "+new Date(auction.endsAt).toLocaleString():outcomeLabel(auction.viewerOutcome);
+    if(accountRole==="buyer"){
+      const count=ownBids.length;
+      if(activityLabel)activityLabel.textContent="Your bids";
+      activity.textContent=count?String(count)+" bid"+(count===1?"":"s")+" submitted":"No bids submitted";
+      timing.textContent=auction.status==="active"&&auction.endsAt?"Closes "+new Date(auction.endsAt).toLocaleString():buyerResult(auction.viewerOutcome);
+    }else if(accountRole==="seller"){
+      if(activityLabel)activityLabel.textContent="Bid activity";
+      activity.textContent=String(total)+" bid"+(total===1?"":"s")+" received";
+      timing.textContent=auction.status==="active"&&auction.endsAt?"Closes "+new Date(auction.endsAt).toLocaleString():auction.winnerId?"Winning bid selected":total?"Reserve was not met":"No bids received";
+    }else{
+      if(activityLabel)activityLabel.textContent="Bid activity";
+      activity.textContent=String(total)+" private bid"+(total===1?"":"s");
+      timing.textContent=auction.status==="active"&&auction.endsAt?"Closes "+new Date(auction.endsAt).toLocaleString():"Auction closed";
+    }
     if(note)note.textContent="This summary refreshes from the linked auction. Open Auction to bid, review timing, or see the permitted result details.";
   }
   function render(){
     const role=transaction.viewerRole,staff=role==="agent",source=MreoCaseNavigation.auctionId(transaction),auctionUrl=MreoCaseNavigation.auctionUrl(transaction),coordinationUrl=MreoCaseNavigation.coordinationUrl(transaction);
     const amount=Number(transaction.amount_cents)>0?new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(transaction.amount_cents)/100):"Not recorded";
     root.innerHTML='<a class="back-link" href="my-properties.html">← My properties</a><header class="transaction-head transaction-head-compact"><div><p class="section-label">Connected property workspace · '+esc(role)+'</p><h1>'+esc(transaction.title)+'</h1><p>'+esc(transaction.kind)+' · '+esc(transaction.status)+'</p></div><span class="status-chip">'+esc(transaction.status)+'</span></header><div id="workspace-tabs">'+MreoCaseNavigation.links(transaction,selected)+'</div>'+
-      '<section id="view-auction" class="case-view-live" hidden><div class="case-layout"><section class="workspace-card workspace-summary-card"><p class="section-label">Auction summary</p><h2>'+(source?'Linked auction':'No auction linked yet')+'</h2><p class="workspace-card-subtitle" id="auction-summary-note">'+(source?'Loading the current auction status…':'No auction has been linked to this property workspace yet.')+'</p><div class="workspace-summary-grid"><div><span>Auction status</span><strong id="auction-summary-state">'+(source?'Loading…':'Not started')+'</strong></div><div><span>'+(role==="seller"?'Bid activity':'Your activity')+'</span><strong id="auction-summary-activity">'+(source?'Loading…':'No bid activity')+'</strong></div><div><span>Timing / result</span><strong id="auction-summary-timing">'+(source?'Loading…':'Open Auction to continue')+'</strong></div></div><a class="primary-button button-blue" href="'+esc(auctionUrl)+'">Open full Auction page →</a></section><aside class="case-guide"><section class="workspace-card"><h2>Property record</h2><p>'+esc(transaction.status)+' · '+esc(amount)+'</p><p>Use Auction for bids and outcomes. Messages, documents, signatures, and service work stay in their own sections.</p></section></aside></div></section>'+
+      '<section id="view-auction" class="case-view-live" hidden><div class="case-layout"><section class="workspace-card workspace-summary-card"><p class="section-label">Auction summary</p><h2>'+(source?'Linked auction':'No auction linked yet')+'</h2><p class="workspace-card-subtitle" id="auction-summary-note">'+(source?'Loading the current auction status…':'No auction has been linked to this property workspace yet.')+'</p><div class="workspace-summary-grid"><div><span>Auction status</span><strong id="auction-summary-state">'+(source?'Loading…':'Not started')+'</strong></div><div><span id="auction-summary-activity-label">'+(role==="buyer"?'Your bids':'Bid activity')+'</span><strong id="auction-summary-activity">'+(source?'Loading…':'No bid activity')+'</strong></div><div><span>Timing / result</span><strong id="auction-summary-timing">'+(source?'Loading…':'Open Auction to continue')+'</strong></div></div><a class="primary-button button-blue" href="'+esc(auctionUrl)+'">Open full Auction page →</a></section><aside class="case-guide"><section class="workspace-card"><h2>Property record</h2><p>'+esc(transaction.status)+' · '+esc(amount)+'</p><p>Use Auction for bids and outcomes. Messages, documents, signatures, and service work stay in their own sections.</p></section></aside></div></section>'+
       '<section id="view-messages" class="case-view-live"><div class="case-layout"><section class="workspace-card conversation-card"><div class="conversation-heading"><div><p class="section-label">Conversation and shared documents</p><h2>Messages with MREO</h2></div><span class="private-chip">Private</span></div><p class="workspace-card-subtitle">'+(staff?"Choose a participant conversation. Documents follow their sharing permissions; other private threads stay separate.":"Your conversation with authorized MREO personnel. Other participant roles cannot read this thread.")+'</p><div id="transaction-thread"></div><div id="document-vault"></div></section><aside class="case-guide"><section class="workspace-card"><h2>Keep it together</h2><p>Ask a question or attach a document. PDFs and signature updates stay in chronological context here.</p><p>Use Coordination to track work and Files to find a document.</p></section><section id="workspace-attention" class="attention-board"></section></aside></div></section>'+
       '<section id="view-coordination" class="case-view-live" hidden><div class="case-layout"><section class="workspace-card workspace-summary-card"><p class="section-label">Coordination summary</p><h2>Services and next steps</h2><p class="workspace-card-subtitle">See the status of connected work here. Open the full Coordinate page to explore Title / Settlement, Contractors, Realtors, and Rent / Manage without mixing those workflows into Messages.</p><div class="workspace-summary-grid"><div><span>Open actions</span><strong id="coordination-action-count">0</strong></div><div><span>Service requests</span><strong id="coordination-service-count">0</strong></div><div><span>Workspace status</span><strong>'+esc(transaction.status)+'</strong></div></div><div id="service-list" class="task-list compact-service-list"></div><a class="primary-button button-blue" href="'+esc(coordinationUrl)+'">Open full Coordinate page →</a></section><aside class="case-guide"><section class="workspace-card"><h2>Your next actions</h2><div id="coordination-tasks"></div></section></aside></div></section>'+
       '<section id="view-files" class="case-view-live" hidden><section class="workspace-card"><p class="section-label">Your permitted documents</p><h2>Files</h2><p class="workspace-card-subtitle">An index of the same files shared in Messages—not separate copies. Existing shared documents retain their access settings.</p><div id="file-index" class="document-list"></div></section></section>'+
@@ -61,7 +76,8 @@
     if(!thread||refreshing)return;refreshing=true;
     try{
       const source=MreoCaseNavigation.auctionId(transaction),role=transaction.viewerRole;
-      const auctionRequest=source&&globalThis.MreoService?.auctionSummary?MreoService.auctionSummary(source,["buyer","seller"].includes(role)?role:"buyer").catch(error=>({error:error.message})):Promise.resolve(null);
+      const auctionRole=["buyer","seller"].includes(role)?role:"buyer",allowDemo=transaction.property?.demo===true||String(source||"").startsWith("demo-");
+      const auctionRequest=source&&globalThis.MreoService?.auctionSummary?MreoService.auctionSummary(source,auctionRole,{allowDemo}).catch(error=>({error:error.message})):Promise.resolve(null);
       const [{tasks},{events},{services},,,auctionSummary]=await Promise.all([MreoIdentity.request(base+"/tasks"),MreoIdentity.request(base+"/events"),MreoIdentity.request(base+"/services"),thread.refresh(),vault.refresh(),auctionRequest]);
       updateAuctionSummary(auctionSummary,role);
       const action=tasks.filter(task=>task.status==="action");
