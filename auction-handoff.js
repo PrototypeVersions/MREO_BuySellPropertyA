@@ -39,7 +39,8 @@
     if (/^(https?:\/\/|assets\/)/i.test(image)) query.set("image", image);
     query.set("role", view);
     query.set("demo", "1");
-    query.set("perspective", view);
+    query.set("entry", "auction");
+    if (intakeTransactionId) query.set("workspaceTransaction", intakeTransactionId);
     query.set("stage", auction.saleCompleted ? "complete" : "won");
     if (account?.name) { query.set("accountName", account.name); query.set("accountRole", view); }
     if (account?.email) query.set("accountEmail", account.email);
