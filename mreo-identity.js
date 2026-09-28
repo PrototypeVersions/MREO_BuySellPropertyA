@@ -34,7 +34,9 @@
       await loadScript(`https://${domain}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`, {clerkPublishableKey:status.clerkPublishableKey});
       clerk = globalThis.Clerk;
       if (!clerk) throw Error("MREO sign-in did not initialize.");
-      await clerk.load({ui:{ClerkUI:globalThis.__internal_ClerkUICtor}});
+      // Clerk reads its post-sign-out destination when the instance is loaded.
+      // Supplying it only to mountUserButton is ignored by current Clerk builds.
+      await clerk.load({afterSignOutUrl:signOutReturn(),ui:{ClerkUI:globalThis.__internal_ClerkUICtor}});
       return clerk;
     })().catch(error => { loading=null;throw Error(publicError(error)); });
     return loading;

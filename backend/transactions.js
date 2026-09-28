@@ -45,22 +45,44 @@ export async function getTransaction(env, transactionId, user) {
 
 export async function createTransaction(request, env, user) {
   const data = await bodyJSON(request);
-  const claims = env.AUTH_MODE === "test" ? data : await verifyHandoffToken(env, data.handoffToken);
+  const directIntake = data.intake === true;
+  let claims;
+  if (directIntake) {
+    const reference = clean(data.reference, 120);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{7,119}$/.test(reference)) throw new HttpError("The property intake reference is invalid.", 400, "invalid_intake_reference");
+    const relatedAuctionId = clean(data.auctionId, 120) || null;
+    claims = {
+      auctionId:`intake-${reference}`,
+      role:data.role,
+      stage:"intake",
+      title:data.title,
+      kind:data.kind,
+      amount:data.amount,
+      property:{id:relatedAuctionId || `intake-${reference}`, stage:"intake", relatedAuctionId, demo:data.demo === true}
+    };
+  } else {
+    claims = env.AUTH_MODE === "test" ? data : await verifyHandoffToken(env, data.handoffToken);
+  }
   const role = ["buyer","seller"].includes(claims.role) ? claims.role : null;
   if (!role) throw new HttpError("Choose buyer or seller participation.", 400, "invalid_role");
   const sourceAuctionId = clean(claims.auctionId, 120) || null;
+  const title = clean(claims.title, 300);
+  if (!title) throw new HttpError("Provide the property or portfolio title.", 400, "title_required");
+  const kind = claims.kind === "portfolio" ? "portfolio" : "property", intake = claims.stage === "intake";
+  const amount = Number.isFinite(Number(claims.amount)) && Number(claims.amount) > 0 ? Math.round(Number(claims.amount) * 100) : null;
+  const property = typeof claims.property === "object" && claims.property ? claims.property : {};
+  if (!property.id) property.id = clean(property.relatedAuctionId, 120) || sourceAuctionId;
   if (sourceAuctionId) {
-    const existing = await one(env, "SELECT id FROM transactions WHERE source_auction_id = ?", sourceAuctionId);
+    const existing = await one(env, "SELECT * FROM transactions WHERE source_auction_id = ?", sourceAuctionId);
     if (existing) {
+      if (directIntake && existing.created_by !== user.id) throw new HttpError("That property intake belongs to another account.", 409, "intake_conflict");
+      const mergedProperty = {...parseJSON(existing.property_json, {}), ...property};
+      await run(env, "UPDATE transactions SET title = ?, kind = ?, amount_cents = COALESCE(?, amount_cents), property_json = ?, updated_at = ? WHERE id = ?", title, kind, amount, JSON.stringify(mergedProperty), now(), existing.id);
       await run(env, "INSERT OR IGNORE INTO transaction_participants (transaction_id, user_id, role, status, created_at) VALUES (?, ?, ?, 'active', ?)", existing.id, user.id, role, now());
       return getTransaction(env, existing.id, user);
     }
   }
-  const title = clean(claims.title, 300);
-  if (!title) throw new HttpError("Provide the property or portfolio title.", 400, "title_required");
-  const transactionId = id("tx"), timestamp = now(), kind = claims.kind === "portfolio" ? "portfolio" : "property", intake = claims.stage === "intake";
-  const amount = Number.isFinite(Number(claims.amount)) && Number(claims.amount) > 0 ? Math.round(Number(claims.amount) * 100) : null;
-  const property = typeof claims.property === "object" && claims.property ? claims.property : {};
+  const transactionId = id("tx"), timestamp = now();
   await batch(env, [
     ["INSERT INTO transactions (id, source_auction_id, kind, title, status, amount_cents, property_json, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [transactionId, sourceAuctionId, kind, title, intake ? "active" : "closing", amount, JSON.stringify(property), user.id, timestamp, timestamp]],
     ["INSERT INTO transaction_participants (transaction_id, user_id, role, status, created_at) VALUES (?, ?, ?, 'active', ?)", [transactionId, user.id, role, timestamp]],
