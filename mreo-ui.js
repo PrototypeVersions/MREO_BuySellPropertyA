@@ -92,6 +92,17 @@ function setupSeller(){
  message("portfolio-upload-message",rows.length+" properties imported successfully.");fees();
  })().catch(e=>{if(v===version){uploadedRows=[];input.setCustomValidity(e.message);message("portfolio-upload-message",e.message,true);}});});
 }
+async function createIntakeWorkspace(account,role){
+ const submission=account?.submission;
+ if(!submission?.draftId||!globalThis.MreoIdentity?.connected())return null;
+ const user=await MreoIdentity.currentUser();
+ if(!user)return null;
+ return MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({
+  intake:true,reference:submission.draftId,role,title:submission.title,kind:submission.kind||"property",
+  amount:role==="seller"?submission.minimum:submission.proposedOffer,
+  auctionId:submission.auctionId||"",demo:!!S.demo
+ })});
+}
 async function submitSeller(){
  await readyPromise;
  if(uploadPromise)await uploadPromise;
@@ -102,13 +113,15 @@ async function submitSeller(){
  const submission={title,kind:portfolio?"portfolio":"property",minimum:C.money(field("seller-minimum")),days:Number(field("auction-days")),portfolio:portfolio?uploadedRows:[],details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))};
  const account=await S.register("seller",{name:field("seller-name"),email:field("seller-email")},submission);
  const mediaFiles=selectedMediaFiles;if(!portfolio&&mediaFiles.length&&account?.submission?.draftId)await S.saveMedia(account.submission.draftId,mediaFiles);
- location.href="payment.html?"+preserveDemo(new URLSearchParams({role:"seller"})).toString();
+ const transaction=await createIntakeWorkspace(account,"seller"),query=preserveDemo(new URLSearchParams({role:"seller"}));if(transaction?.id)query.set("transaction",transaction.id);
+ location.href="payment.html?"+query.toString();
 }
 async function submitBuyer(){
  await readyPromise;
  const form=$("buyer-form");if(!form.reportValidity())return;
- await S.register("buyer",{name:field("buyer-name"),email:field("buyer-email")},{title:field("buyer-offer-address"),auctionId:params.get("auction")||"",mediaKey:params.get("mediaKey")||"",image:params.get("image")||"",proposedOffer:field("buyer-offer-amount"),details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))});
- location.href="payment.html?"+preserveDemo(new URLSearchParams({role:"buyer"})).toString();
+ const account=await S.register("buyer",{name:field("buyer-name"),email:field("buyer-email")},{title:field("buyer-offer-address"),auctionId:params.get("auction")||"",mediaKey:params.get("mediaKey")||"",image:params.get("image")||"",proposedOffer:field("buyer-offer-amount"),details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))});
+ const transaction=await createIntakeWorkspace(account,"buyer"),query=preserveDemo(new URLSearchParams({role:"buyer"}));if(transaction?.id)query.set("transaction",transaction.id);
+ location.href="payment.html?"+query.toString();
 }
 async function payment(){
  if(!$("payment-submit"))return;
@@ -135,6 +148,7 @@ async function payment(){
   if(phone)q.set("accountPhone",phone);
   if(details.buyerPurchaseMethod)q.set("purchaseMethod",details.buyerPurchaseMethod);
   if(timeline)q.set("purchaseTimeline",timeline);
+  if(params.get("transaction"))q.set("workspaceTransaction",params.get("transaction"));
   return "coordination.html?"+q.toString();
  }
  async function refresh(){
@@ -161,14 +175,16 @@ async function payment(){
  }
  let a=await refresh();
  if(params.get("cancelled"))message("payment-message","Checkout was cancelled. No auction access has been activated.");
- if(params.get("session_id")&&!S.demo){button.disabled=true;message("payment-message","Verifying payment…");try{await S.confirm(role,params.get("session_id"));history.replaceState(null,"","payment.html?"+preserveDemo(new URLSearchParams({role})).toString());a=await refresh();message("payment-message",a.creditCents>=100?"Payment verified. Your $1 participation credit is ready.":"Payment is still pending. Refresh shortly to check again.");}catch(e){message("payment-message",e.message,true);await refresh();}}
+ if(params.get("session_id")&&!S.demo){button.disabled=true;message("payment-message","Verifying payment…");try{await S.confirm(role,params.get("session_id"));const next=preserveDemo(new URLSearchParams({role}));if(params.get("transaction"))next.set("transaction",params.get("transaction"));history.replaceState(null,"","payment.html?"+next.toString());a=await refresh();message("payment-message",a.creditCents>=100?"Payment verified. Your $1 participation credit is ready.":"Payment is still pending. Refresh shortly to check again.");}catch(e){message("payment-message",e.message,true);await refresh();}}
  button.addEventListener("click",()=>busy(button,async()=>{try{
  const account=await ensureParticipation();if(!account)return;
  const active=await S.activate(role);
  let transaction=null;
  if(active.handoffToken&&globalThis.MreoIdentity?.connected())transaction=await MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({handoffToken:active.handoffToken})});
- if(active.auctionId){const q=preserveDemo(new URLSearchParams({id:active.auctionId,view:role}));if(transaction?.id)q.set("transaction",transaction.id);location.href="auction.html?"+q.toString();}
- else if(transaction?.id)location.href="auction.html?pending=1&transaction="+encodeURIComponent(transaction.id);
+ else if(active.auctionId)transaction=await createIntakeWorkspace(await S.me(role),role);
+ const workspaceId=transaction?.id||params.get("transaction");
+ if(active.auctionId){const q=preserveDemo(new URLSearchParams({id:active.auctionId,view:role}));if(workspaceId)q.set("transaction",workspaceId);location.href="auction.html?"+q.toString();}
+ else if(workspaceId)location.href="auction.html?pending=1&transaction="+encodeURIComponent(workspaceId);
  else {const q=preserveDemo(new URLSearchParams({view:role,select:"1"}));if(account.submission?.title)q.set("address",account.submission.title);location.href="auction.html?"+q.toString();}
  }catch(e){message("payment-message",e.message,true);}}));
  if(coordinate)coordinate.addEventListener("click",async event=>{
