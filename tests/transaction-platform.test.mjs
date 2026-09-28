@@ -68,3 +68,23 @@ test("intake creates an active private conversation and hides other participant 
   const events=(await data(await apiFetch(request(`/api/v1/transactions/${alice.id}/events`,{user:"alice",email:"alice@example.com"}),e))).body.events;
   assert.ok(events.every(event=>event.metadata_json==="{}"));
 });
+
+test("authenticated intake appears immediately, is idempotent, and cannot be claimed by another account", async () => {
+  const e=env(),intake={intake:true,reference:"draft-buyer-12345678",role:"buyer",title:"2605 Preston Meadow Court",kind:"property",amount:551000,auctionId:"demo-plano",demo:true};
+  const created=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:intake}),e));
+  assert.equal(created.status,201);assert.equal(created.body.status,"active");assert.equal(created.body.source_auction_id,"intake-draft-buyer-12345678");
+  assert.deepEqual(created.body.property,{id:"demo-plano",stage:"intake",relatedAuctionId:"demo-plano",demo:true});
+  const repeated=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:{...intake,amount:552000}}),e));
+  assert.equal(repeated.status,201);assert.equal(repeated.body.id,created.body.id);assert.equal(repeated.body.amount_cents,55200000);
+  const listed=await data(await apiFetch(request("/api/v1/transactions",{user:"blake"}),e));
+  assert.equal(listed.body.transactions.length,1);assert.equal(listed.body.transactions[0].id,created.body.id);
+  const conflict=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"mallory",body:intake}),e));
+  assert.equal(conflict.status,409);assert.equal(conflict.body.code,"intake_conflict");
+});
+
+test("a later verified handoff reuses and refreshes its intake workspace", async () => {
+  const e=env(),reference="draft-seller-12345678";
+  const created=(await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"seller",body:{intake:true,reference,role:"seller",title:"Seller draft",kind:"property",amount:400000}}),e))).body;
+  const activated=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"seller",body:{auctionId:"intake-"+reference,role:"seller",stage:"intake",title:"Seller draft",kind:"property",amount:400000,property:{stage:"intake",relatedAuctionId:"auction-live-1"}}}),e));
+  assert.equal(activated.status,201);assert.equal(activated.body.id,created.id);assert.equal(activated.body.property.id,"auction-live-1");assert.equal(activated.body.property.relatedAuctionId,"auction-live-1");
+});
