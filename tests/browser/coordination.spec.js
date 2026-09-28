@@ -674,9 +674,9 @@ test("Coordination Reset all test data clears cross-workspace browser state",asy
 });
 
 
-test("direct Coordinate opens an actionable network-level Service Partner inbox",async({page})=>{
- await page.goto("/index.html");
- const coordinate=page.getByRole("link",{name:"Coordinate",exact:true});
+test("the property hub keeps the network-level Service Partner demonstration available",async({page})=>{
+ await page.goto("/my-properties.html");
+ const coordinate=page.getByRole("link",{name:"Service partner demonstration"});
  await expect(coordinate).toHaveAttribute("href","coordination.html?role=provider");
  await coordinate.click();
  await expect(page).toHaveURL(/coordination\.html\?role=provider/);

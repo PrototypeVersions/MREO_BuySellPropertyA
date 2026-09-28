@@ -66,13 +66,13 @@ test("agent conversations keep sample files and signing events in their original
  await expect(page.locator(".case-message-list")).toContainText("Demonstration signing complete");
 });
 
-test("Explore and Coordinate remain visible on the current page",async({page})=>{
- for(const path of ["experience.html","demo-case.html","coordination.html?role=provider","profile.html","auction.html"]){
-  await page.goto("/"+path);
+test("the simplified property menu is consistent throughout the site",async({page})=>{
+ for(const path of ["index.html","buyer.html","seller.html","my-properties.html","experience.html","demo-case.html","coordination.html?role=provider","coordination-service.html","coordination-provider-job.html","coordination-response.html","profile.html","agent.html","auction.html","payment.html","properties.html","property.html","portfolios.html","portfolio.html","turkey-property.html"]){
+  await page.goto("/"+path,{waitUntil:"domcontentloaded"});
   const navigation=page.getByRole("navigation",{name:"Main navigation"});
-  await expect(navigation.getByRole("link",{name:"Explore",exact:true})).toBeVisible();
-  await expect(navigation.getByRole("link",{name:"Coordinate",exact:true})).toBeVisible();
-  await noOverflow(page);
+  await expect(navigation.getByRole("link")).toHaveText(["Buy","Sell","My properties","Auctions","My MREO"]);
+  await expect(navigation.getByRole("link",{name:"My properties",exact:true})).toHaveAttribute("href","my-properties.html");
+  expect(await navigation.evaluate(element=>element.getBoundingClientRect().right<=innerWidth+1)).toBe(true);
  }
 });
 
@@ -92,6 +92,7 @@ test("connected Messages Files and Coordination share records without mixing par
    throw Error("Live connection omitted in browser test");
   }};`}));
  await page.goto("/coordination.html?transaction=tx-test");
+ await expect(page.locator("#connected-transaction-shell > .back-link")).toHaveAttribute("href","my-properties.html");
  const feed=page.locator(".conversation-feed");
  await expect(feed).toContainText("Buyer private message");await expect(feed).not.toContainText("Seller private");
  await expect(feed).not.toContainText("Seller signing update");

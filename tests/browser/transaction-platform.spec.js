@@ -19,9 +19,10 @@ test("My MREO explains deployment state without creating a fake account",async({
  await expect(page.getByRole("link",{name:"Explore MREO"})).toBeVisible();
 });
 
-test("home retains provider console and adds Explore and My MREO",async({page})=>{
+test("home opens the property list and keeps My MREO available",async({page})=>{
  await page.goto("/index.html");
- await expect(page.getByRole("link",{name:"Coordinate",exact:true})).toHaveAttribute("href","coordination.html?role=provider");
- await expect(page.getByRole("link",{name:"Explore",exact:true})).toHaveAttribute("href","experience.html");
+ await page.getByRole("link",{name:"My properties",exact:true}).click();
+ await expect(page).toHaveURL(/my-properties\.html$/);
+ await expect(page.getByRole("link",{name:"Start a demonstration"})).toHaveAttribute("href","experience.html");
  await expect(page.getByRole("link",{name:"My MREO",exact:true})).toHaveAttribute("href","profile.html");
 });
