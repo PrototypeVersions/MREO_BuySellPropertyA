@@ -20,6 +20,16 @@ function read(){const s=localStorage.getItem(key);if(!s)return {accounts:{},auct
 function write(s){try{const value=JSON.stringify(s);if(localStorage.getItem(key)!==value)localStorage.setItem(key,value);}catch{throw Error("Browser storage is full or unavailable. Download your portfolio, then clear old test data or use another browser.");}}
 function session(role=currentRole(),useDemo=demo){try{return JSON.parse(sessionStorage.getItem(sessionKey(role,useDemo))||"null");}catch{return null;}}
 function keep(role,account){sessionStorage.setItem(sessionKey(role),JSON.stringify(account));setRole(role);}
+function bridgeBuyerToDemoAuction(account,auctionId){
+ const target=String(auctionId||"");
+ if(!account||account.role!=="buyer"||!target.startsWith("demo-"))return false;
+ const s=read(),id="connected-demo-"+String(account.id||uid("buyer")).replace(/[^A-Za-z0-9_-]/g,"").slice(0,90);
+ s.accounts[id]={...(s.accounts[id]||{}),id,role:"buyer",name:account.name||"Buyer",email:account.email||"",creditCents:Math.max(100,Number(account.creditCents||0)),test:true,submission:{...(account.submission||{}),auctionId:target}};
+ write(s);
+ sessionStorage.setItem(sessionKey("buyer",true),JSON.stringify({id,role:"buyer"}));
+ setRole("buyer");
+ return true;
+}
 function demoAccount(state,auction,role,actor){
  // Test Seller previews the owner of the selected listing, including user-created listings.
  const id=actor==="test-seller"?auction.sellerId:actor||session(role,true)?.id;
@@ -226,5 +236,5 @@ async function completeSale(id){
  const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);
 }
 async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}
-globalThis.MreoService={demo,key,init,status:()=>connectionStatus,testControlsAvailable,register,me,checkout,confirm,activate,list,auction,auctionSummary,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
+globalThis.MreoService={demo,key,init,status:()=>connectionStatus,testControlsAvailable,bridgeBuyerToDemoAuction,register,me,checkout,confirm,activate,list,auction,auctionSummary,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
 })();

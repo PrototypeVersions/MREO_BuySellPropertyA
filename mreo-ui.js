@@ -179,12 +179,20 @@ async function payment(){
  if(params.get("session_id")&&!S.demo){button.disabled=true;message("payment-message","Verifying payment…");try{await S.confirm(role,params.get("session_id"));const next=preserveDemo(new URLSearchParams({role}));if(params.get("transaction"))next.set("transaction",params.get("transaction"));history.replaceState(null,"","payment.html?"+next.toString());a=await refresh();message("payment-message",a.creditCents>=100?"Payment verified. Your $1 participation credit is ready.":"Payment is still pending. Refresh shortly to check again.");}catch(e){message("payment-message",e.message,true);await refresh();}}
  button.addEventListener("click",()=>busy(button,async()=>{try{
  const account=await ensureParticipation();if(!account)return;
+ const selectedAuctionId=role==="buyer"?String(account.submission?.auctionId||""):"";
+ const selectedDemoAuction=selectedAuctionId.startsWith("demo-")?selectedAuctionId:"";
+ if(selectedDemoAuction)S.bridgeBuyerToDemoAuction?.(account,selectedDemoAuction);
  const active=await S.activate(role);
  let transaction=null;
  if(active.handoffToken&&globalThis.MreoIdentity?.connected())transaction=await MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({handoffToken:active.handoffToken})});
  else if(active.auctionId)transaction=await createIntakeWorkspace(await S.me(role),role);
- const workspaceId=transaction?.id||params.get("transaction");
- if(active.auctionId){const q=preserveDemo(new URLSearchParams({id:active.auctionId,view:role}));if(workspaceId)q.set("transaction",workspaceId);location.href="auction.html?"+q.toString();}
+ const workspaceId=transaction?.id||params.get("transaction"),targetAuctionId=active.auctionId||selectedDemoAuction;
+ if(targetAuctionId){
+  const q=new URLSearchParams({id:targetAuctionId,view:role});
+  if(targetAuctionId.startsWith("demo-"))q.set("demo","1");else preserveDemo(q);
+  if(workspaceId)q.set("transaction",workspaceId);
+  location.href="auction.html?"+q.toString();
+ }
  else if(workspaceId)location.href="auction.html?pending=1&transaction="+encodeURIComponent(workspaceId);
  else {const q=preserveDemo(new URLSearchParams({view:role,select:"1"}));if(account.submission?.title)q.set("address",account.submission.title);location.href="auction.html?"+q.toString();}
  }catch(e){message("payment-message",e.message,true);}}));

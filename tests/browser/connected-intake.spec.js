@@ -68,7 +68,7 @@ test("connected participation stays in Auction and explains when a listing is no
  await page.route("https://api.mreo.test/**",async route=>{
   const path=new URL(route.request().url()).pathname;
   if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,defaultDays:1}});
-  if(path==="/me")return route.fulfill({json:{id:"auction-account",role:"buyer",name:"Blake Buyer",email:"buyer@example.com",creditCents:paid?100:0,submission:{title:"2605 Preston Meadow Court",auctionId:"demo-plano"}}});
+  if(path==="/me")return route.fulfill({json:{id:"auction-account",role:"buyer",name:"Blake Buyer",email:"buyer@example.com",creditCents:paid?100:0,submission:{title:"2605 Preston Meadow Court",auctionId:""}}});
   if(path==="/checkout"){paid=true;return route.fulfill({json:{paid:true,testBypass:true}});}
   if(path==="/activate")return route.fulfill({json:{auctionId:null,handoffToken:"signed-intake-token"}});
   return route.fulfill({status:404,json:{error:"Not found"}});
@@ -233,4 +233,34 @@ test("portfolio buyer interest preserves the portfolio auction relationship",asy
  });
  await expect(page).toHaveURL(/payment\.html\?role=buyer&demo=1&transaction=tx-portfolio$/);
  expect(intakes[0]).toMatchObject({intake:true,role:"buyer",kind:"portfolio",auctionId:"demo-portfolio",title:"Illustrative REO portfolio · 150 properties",demo:true});
+});
+
+
+test("connected buyer selecting the illustrative portfolio lands on its working auction",async({page})=>{
+ let paid=false;
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={
+   connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"clerk-user"}),mountUserButton:async()=>true,openSignIn:async()=>{},
+   request:async(path,options={})=>{
+    if(path==="/api/v1/transactions"&&options.method==="POST")return {id:"tx-portfolio"};
+    throw Error("Unexpected identity request: "+path);
+   }
+  };
+ `}));
+ await page.route("https://api.mreo.test/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,defaultDays:1}});
+  if(path==="/me")return route.fulfill({json:{id:"auction-account",role:"buyer",name:"Blake Buyer",email:"buyer@example.com",creditCents:paid?100:0,submission:{title:"Illustrative REO portfolio · 150 properties",auctionId:"demo-portfolio",kind:"portfolio",proposedOffer:"4804450"}}});
+  if(path==="/checkout"){paid=true;return route.fulfill({json:{paid:true,testBypass:true}});}
+  if(path==="/activate")return route.fulfill({json:{auctionId:null,handoffToken:"signed-intake-token"}});
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.addInitScript(()=>sessionStorage.setItem("mreo:v3:/:connected:https://api.mreo.test:buyer",JSON.stringify({token:"auction-account.secret",id:"auction-account",role:"buyer"})));
+ await page.goto("/payment.html?role=buyer&transaction=tx-portfolio");
+ await page.getByRole("button",{name:"Auction →"}).click();
+ await expect(page).toHaveURL(/auction\.html\?id=demo-portfolio&view=buyer&demo=1&transaction=tx-portfolio$/);
+ await expect(page.locator("#auction-title")).toHaveText("Illustrative REO portfolio · 150 properties");
+ await expect(page.locator("#auction-content")).toBeVisible();
+ await expect(page.getByRole("heading",{name:"No active auction for this property"})).toHaveCount(0);
 });
