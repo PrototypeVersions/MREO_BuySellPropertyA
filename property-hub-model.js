@@ -4,6 +4,7 @@ export const VIEWS = {auction:"Auction", messages:"Messages", coordination:"Coor
 const label = value => typeof value === "string" ? value.trim() : "";
 const normalized = value => label(value).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const timestamp = value => Number.isFinite(Number(value)) ? Number(value) : Date.parse(value) || 0;
+const riversideImage = "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=500&q=80";
 
 // Read only this site's guided runs. Listing never changes a run or its active pointer.
 export function savedDemonstrations(storage, prefix) {
@@ -17,9 +18,10 @@ export function savedDemonstrations(storage, prefix) {
       if (!label(state?.property?.title) || !state.auction || !state.transaction ||
           !["threads","messages","documents","signatureRequests","serviceRequests","events"].every(name => Array.isArray(state[name]))) continue;
       const view = Object.hasOwn(VIEWS, state.lastView) ? state.lastView : "auction";
+      const savedImage=label(state.property.image),image=savedImage&&savedImage!=="assets/property-placeholder.svg"?savedImage:(normalized(state.property.title).startsWith("1147 riverside terrace")?riversideImage:savedImage);
       records.push({id:state.id, source:"demo", propertyKey:normalized(state.property.title),
         title:state.property.title, roles:[ROLES[state.perspective]], status:state.transaction.status,
-        updatedAt:timestamp(state.updatedAt || state.createdAt), view:VIEWS[view],
+        updatedAt:timestamp(state.updatedAt || state.createdAt), view:VIEWS[view], image,
         href:"demo-case.html?run=" + encodeURIComponent(state.id) + "&view=" + view});
     }
   } catch { /* Browser storage can be disabled; account records still work. */ }
@@ -31,16 +33,22 @@ export function accountWorkspaces(transactions) {
   for (const item of Array.isArray(transactions) ? transactions : []) {
     if (!label(item?.id) || !label(item.title)) continue;
     const role = ROLES[item.viewer_role] || "Participant";
+    const property=item.property&&typeof item.property==="object"?item.property:{};
+    const relatedAuctionId=label(property.relatedAuctionId),sourceAuctionId=label(item.source_auction_id);
+    const media={mediaKey:label(property.mediaKey),image:label(property.image),auctionId:relatedAuctionId||(sourceAuctionId&&!sourceAuctionId.startsWith("intake-")?sourceAuctionId:"")};
     if (records.has(item.id)) {
       const existing = records.get(item.id);
       if (!existing.roles.includes(role)) existing.roles.push(role);
+      if (!existing.mediaKey && media.mediaKey) existing.mediaKey=media.mediaKey;
+      if (!existing.image && media.image) existing.image=media.image;
+      if (!existing.auctionId && media.auctionId) existing.auctionId=media.auctionId;
       continue;
     }
-    const propertyId = label(item.property?.id);
+    const propertyId = label(property.id);
     records.set(item.id, {id:item.id, source:"account",
       propertyKey:propertyId ? "id:" + propertyId : (item.kind || "property") + ":" + normalized(item.title),
       title:item.title, roles:[role], status:item.status, updatedAt:timestamp(item.updated_at || item.created_at),
-      view:"Messages", href:"coordination.html?transaction=" + encodeURIComponent(item.id) + "&section=messages"});
+      view:"Messages", ...media, href:"coordination.html?transaction=" + encodeURIComponent(item.id) + "&section=messages"});
   }
   return [...records.values()];
 }

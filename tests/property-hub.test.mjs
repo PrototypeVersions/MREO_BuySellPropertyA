@@ -43,3 +43,9 @@ test("a stable account property ID keeps renamed workspaces together and safely 
   assert.equal(groupProperties(records).find(group=>group.latest.id==="tx2").workspaces.length,2);
   assert.ok(records[0].href.includes("transaction=tx%20%26%201"));
 });
+test("workspace records retain the best available property thumbnail references",()=>{
+  const [record]=accountWorkspaces([{id:"tx-photo",title:"Photo property",viewer_role:"seller",source_auction_id:"intake-draft",property:{id:"property-photo",relatedAuctionId:"auction-photo",mediaKey:"draft-photo",image:"assets/property-placeholder.svg"}}]);
+  assert.equal(record.auctionId,"auction-photo");assert.equal(record.mediaKey,"draft-photo");assert.equal(record.image,"assets/property-placeholder.svg");
+  const storage=memory(),prefix="demo:";const demo=createScenario("buyer");saveScenario(storage,prefix,demo);
+  assert.match(savedDemonstrations(storage,prefix)[0].image,/images\.unsplash\.com/);
+});

@@ -94,3 +94,34 @@ test("account errors and corrupt saved records do not block healthy demonstratio
   await page.locator(".hub-property-link").first().click();
   await expect(page.locator("#case-tabs a")).toHaveText(["Auction","Messages","Coordination","Files"]);
 });
+
+test("the seller's first available photo becomes the marketplace and My Properties thumbnail",async({page},info)=>{
+  await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+  await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+    globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"seller-user"}),request:async(path)=>{
+      if(path==="/api/v1/transactions")return {transactions:[{id:"tx-upload",title:"5554 Richard Ave, Dallas, TX 75206",kind:"property",status:"active",viewer_role:"seller",updated_at:Date.UTC(2026,8,29),property:{id:"auction-upload",relatedAuctionId:"auction-upload"}}]};
+      throw Error("Unexpected identity request: "+path);
+    }};` }));
+  await page.route("https://api.mreo.test/**",route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true}});
+    if(path==="/auctions")return route.fulfill({json:{auctions:[{id:"auction-upload",title:"5554 Richard Ave, Dallas, TX 75206",kind:"property",reserve:451000,status:"active",endsAt:Date.now()+86400000,example:false,mediaKey:"draft-upload",details:{propertyCity:"Dallas",propertyState:"TX"}}]}});
+    return route.fulfill({status:404,json:{error:"Not found"}});
+  });
+  await page.goto("/properties.html");
+  await expect(page.locator("#new-listings .property-row")).toHaveCount(1);
+  await page.evaluate(async()=>{
+    const file=new File(['<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120" viewBox="0 0 160 120"><rect width="160" height="120" fill="#efe7d4"/><path d="M20 62 80 18l60 44v45H20z" fill="#3156b8"/><path d="M11 62 80 10l69 52" fill="none" stroke="#d63b2c" stroke-width="11"/><rect x="66" y="68" width="28" height="39" fill="#f6f1e7"/><rect x="35" y="67" width="21" height="18" fill="#9ec8e8"/><rect x="105" y="67" width="21" height="18" fill="#9ec8e8"/></svg>'],"front.svg",{type:"image/svg+xml"});
+    await MreoService.saveMedia("draft-upload",[file]);
+  });
+  await page.reload();
+  const available=page.locator("#new-listings .property-thumbnail img");
+  await expect.poll(()=>available.getAttribute("src")).toMatch(/^blob:/);
+  await expect(available).toHaveAttribute("data-primary-media-name","front.svg");
+  await page.screenshot({path:info.outputPath("available-upload-thumbnail.png"),fullPage:true});
+  await page.goto("/my-properties.html");
+  const saved=page.locator('[data-source="account"] .hub-property-image');
+  await expect.poll(()=>saved.getAttribute("src")).toMatch(/^blob:/);
+  await expect(saved).toHaveAttribute("data-primary-media-name","front.svg");
+  await page.screenshot({path:info.outputPath("my-properties-upload-thumbnail.png"),fullPage:true});
+});

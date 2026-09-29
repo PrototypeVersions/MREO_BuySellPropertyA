@@ -11,7 +11,7 @@ function context(){
 }
 const env={STRIPE_SECRET_KEY:"sk_test_example",STRIPE_WEBHOOK_SECRET:"whsec_example",HANDOFF_SIGNING_SECRET:"handoff-test-secret-at-least-32-bytes",SITE_URL:"https://example.com/MREO_BuySell"};
 const request=(path,method="GET",body,token)=>new Request("https://api.example.com"+path,{method,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},body:body?JSON.stringify(body):undefined});
-async function register(exchange,role){const r=await exchange.fetch(request("/register","POST",{role,details:{name:role,email:role+"@example.com"},submission:{title:"Test listing",minimum:250000,days:1,kind:"property"}}));assert.equal(r.status,201);return r.json();}
+async function register(exchange,role,submission={}){const r=await exchange.fetch(request("/register","POST",{role,details:{name:role,email:role+"@example.com"},submission:{title:"Test listing",minimum:250000,days:1,kind:"property",...submission}}));assert.equal(r.status,201);return r.json();}
 test("only correct current webhook signatures are accepted",async()=>{
  const raw='{"type":"checkout.session.completed"}',now=Date.now(),t=String(Math.floor(now/1000)),secret="whsec_test";
  const sig=createHmac("sha256",secret).update(t+"."+raw).digest("hex");
@@ -36,6 +36,7 @@ test("authentication and payment gate protect auctions and seller data",async()=
  let r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,403);
  const s=ctx.data.get("account:"+seller.id);s.creditCents=100;ctx.data.set("account:"+seller.id,s);
  r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,201);const {auctionId}=await r.json();
+ const listing=(await (await ex.fetch(request("/auctions"))).json()).auctions[0];assert.equal(listing.mediaKey,seller.submission.draftId);assert.deepEqual(listing.details,{});
  r=await ex.fetch(request("/auctions/"+auctionId+"?view=seller","GET",null,buyer.token));assert.equal(r.status,403);
  r=await ex.fetch(request("/auctions/"+auctionId+"/bids","POST",{amount:260000},buyer.token));assert.equal(r.status,403);
  r=await ex.fetch(request("/auctions/"+auctionId+"/bids","POST",{amount:260000},"forged.token"));assert.equal(r.status,401);
@@ -49,13 +50,13 @@ test("missing Stripe grants an explicit test credit while live payments are disa
  r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,201);
 });
 test("paid participants receive a signed intake workspace before an auction closes",async()=>{
- const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),buyer=await register(ex,"buyer");
+ const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),buyer=await register(ex,"buyer",{mediaKey:"listing-media",image:"assets/property-placeholder.svg"});
  assert.equal(buyer.email,"buyer@example.com");assert.equal(buyer.submission.title,"Test listing");assert.match(buyer.submission.draftId,/^[0-9a-f-]+$/i);
  await ex.fetch(request("/checkout","POST",{testBypass:true},buyer.token));
  const result=await (await ex.fetch(request("/activate","POST",{},buyer.token))).json();
  assert.equal(result.auctionId,null);assert.match(result.handoffToken,/\./);
  const claims=await verifyHandoffToken(testEnv,result.handoffToken);
- assert.equal(claims.stage,"intake");assert.equal(claims.role,"buyer");assert.match(claims.auctionId,/^intake-/);assert.equal(claims.title,"Test listing");
+ assert.equal(claims.stage,"intake");assert.equal(claims.role,"buyer");assert.match(claims.auctionId,/^intake-/);assert.equal(claims.title,"Test listing");assert.equal(claims.property.mediaKey,"listing-media");assert.equal(claims.property.image,"assets/property-placeholder.svg");
 });
 test("concurrent equal blind bids are both saved and expired auctions reject late bids",async()=>{
  const ctx=context(),ex=new Exchange(ctx,env),buyer1=await register(ex,"buyer"),buyer2=await register(ex,"buyer");

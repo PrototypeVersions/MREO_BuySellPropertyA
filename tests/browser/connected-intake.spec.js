@@ -43,7 +43,7 @@ test("buyer interest and seller submissions create My Properties workspaces imme
  await completeRequired(page.locator("#seller-form"));
  await page.locator("#seller-form").evaluate(form=>form.requestSubmit());
  await expect(page).toHaveURL(/payment\.html\?role=seller&transaction=tx-seller$/);
- expect(intakes[1]).toMatchObject({intake:true,reference:"draft-seller-12345678",role:"seller",kind:"property",demo:false});
+ expect(intakes[1]).toMatchObject({intake:true,reference:"draft-seller-12345678",role:"seller",kind:"property",mediaKey:"draft-seller-12345678",demo:false});
  expect(intakes[1].title).toContain("Test value");
 });
 
@@ -87,6 +87,33 @@ test("connected participation stays in Auction and explains when a listing is no
  await expect(page.getByRole("heading",{name:"Messages with MREO"})).toBeVisible();
  await expect(page.getByRole("textbox",{name:"Message"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"Your private MREO thread is ready"})).toBeVisible();
+});
+
+test("a seller who activates a listing lands on the full auction rather than a workspace tab",async({page},info)=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"seller-user"}),request:async(path,options={})=>{
+   if(path==="/api/v1/transactions"&&options.method==="POST")return {id:"tx-seller-live"};
+   throw Error("Unexpected identity request: "+path);
+  }};` }));
+ await page.route("https://api.mreo.test/**",route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true}});
+  if(path==="/me")return route.fulfill({json:{id:"exchange-seller",role:"seller",name:"Seller",email:"seller@example.com",creditCents:100,submission:{title:"5554 Richard Ave, Dallas, TX 75206",kind:"property",minimum:450000,draftId:"draft-seller-live",auctionId:"auction-seller-live"}}});
+  if(path==="/activate")return route.fulfill({json:{auctionId:"auction-seller-live",handoffToken:"signed-intake-token"}});
+  if(path==="/auctions")return route.fulfill({json:{auctions:[{id:"auction-seller-live",title:"5554 Richard Ave, Dallas, TX 75206",kind:"property",reserve:451000,status:"active",endsAt:Date.now()+86400000,example:false,mediaKey:"draft-seller-live",details:{propertyCity:"Dallas",propertyState:"TX"}}]}});
+  if(path==="/auctions/auction-seller-live")return route.fulfill({json:{auction:{id:"auction-seller-live",title:"5554 Richard Ave, Dallas, TX 75206",kind:"property",minimum:450000,reserve:451000,fee:1000,status:"active",startsAt:Date.now()-1000,endsAt:Date.now()+86400000,days:1,bids:[],bidCount:0,viewerOutcome:"not-participating"},account:{id:"exchange-seller",role:"seller",name:"Seller"},isSeller:true,serverNow:Date.now()}});
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.addInitScript(()=>sessionStorage.setItem("mreo:v3:/:connected:https://api.mreo.test:seller",JSON.stringify({token:"exchange-seller.secret",id:"exchange-seller",role:"seller"})));
+ await page.goto("/payment.html?role=seller&transaction=tx-seller-live");
+ await page.getByRole("button",{name:"Auction →"}).click();
+ await expect(page).toHaveURL(/auction\.html\?id=auction-seller-live&view=seller&transaction=tx-seller-live$/);
+ await expect(page.locator(".page-heading")).toBeVisible();
+ await expect(page.getByRole("heading",{name:/A clearer view of every offer/})).toBeVisible();
+ await expect(page.locator("#auction-case-context")).toHaveCount(0);
+ await expect(page.locator("#auction-title")).toHaveText("5554 Richard Ave, Dallas, TX 75206");
+ await page.screenshot({path:info.outputPath("seller-full-auction.png"),fullPage:true});
 });
 
 test("workspace Auction and Coordination tabs show current summaries and link to the full tools",async({page})=>{

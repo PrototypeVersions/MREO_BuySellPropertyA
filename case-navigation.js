@@ -5,6 +5,7 @@
     const source=auctionId(transaction);
     const query=new URLSearchParams({transaction:transaction.id});
     if(source)query.set("id",source);
+    else query.set("pending","1");
     if(!source||source.startsWith("demo-"))query.set("demo","1");
     return "auction.html?"+query.toString();
   }
@@ -23,7 +24,10 @@
   }
   globalThis.MreoCaseNavigation={links,auctionId,auctionUrl,coordinationUrl};
   if(!document.getElementById("auction-select"))return;
-  const query=new URLSearchParams(location.search),id=query.get("transaction");if(!id)return;
+  const query=new URLSearchParams(location.search),id=query.get("transaction");
+  // An active auction is a full tool, not another copy of the property workspace.
+  // Keep the compact workspace context only for the useful "no auction yet" state.
+  if(!id||query.get("pending")!=="1")return;
   const root=document.createElement("section");root.id="auction-case-context";
   document.querySelector(".auction-toolbar").before(root);
   (async()=>{
