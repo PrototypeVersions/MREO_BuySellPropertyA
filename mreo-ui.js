@@ -214,7 +214,13 @@ async function portfolio(){
  if(String(listingId).startsWith("demo-")||params.get("demo")==="1"){interestQuery.set("demo","1");auctionQuery.set("demo","1");}
  $("portfolio-interest").href="buyer.html?"+interestQuery.toString();
  $("portfolio-auction").href="auction.html?"+auctionQuery.toString();
- if(!S.demo&&!auction){$("portfolio-interest").href="buyer.html?address="+encodeURIComponent(title);$("portfolio-auction").hidden=true;}
+ if(!S.demo&&!auction){
+  // The no-id portfolio page is the built-in illustrative portfolio. Keep it
+  // on the local demo auction even when the rest of the site is connected.
+  $("portfolio-interest").href="buyer.html?"+interestQuery.toString();
+  $("portfolio-auction").href="auction.html?"+auctionQuery.toString();
+  $("portfolio-auction").hidden=false;
+ }
  if(auction&&!auction.example){
  $("portfolio-csv").href=URL.createObjectURL(new Blob([C.csv(C.portfolioMatrix(rows))],{type:"text/csv;charset=utf-8"}));$("portfolio-csv").download="MREO-portfolio.csv";
  const dl=$("portfolio-download");dl.removeAttribute("href");dl.removeAttribute("download");dl.setAttribute("role","button");dl.tabIndex=0;dl.textContent="Download Excel · "+rows.length+" properties";

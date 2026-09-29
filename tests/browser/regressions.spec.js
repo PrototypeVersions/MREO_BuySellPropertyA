@@ -95,3 +95,21 @@ test("portfolio workspace Auction tab recovers the matching working auction",asy
   await expect(page.locator("#auction-content")).toBeVisible();
   await expect(page.getByRole("heading",{name:"No active auction for this property"})).toHaveCount(0);
 });
+
+
+test("connected portfolio marketplace keeps the illustrative portfolio on its working demo auction",async({page})=>{
+  await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG={mode:"connected",apiBase:"https://api.mreo.test"};'}));
+  await page.route("https://api.mreo.test/**",route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,defaultDays:1}});
+    return route.fulfill({status:404,json:{error:"Not found"}});
+  });
+  await page.goto("/portfolio.html");
+  const interest=page.locator("#portfolio-interest");
+  await expect(interest).toHaveAttribute("href",/buyer\.html\?/);
+  await expect(interest).toHaveAttribute("href",/auction=demo-portfolio/);
+  await expect(interest).toHaveAttribute("href",/demo=1/);
+  await expect(interest).toHaveAttribute("href",/kind=portfolio/);
+  await expect(page.locator("#portfolio-auction")).toBeVisible();
+  await expect(page.locator("#portfolio-auction")).toHaveAttribute("href",/auction\.html\?id=demo-portfolio&demo=1/);
+});
