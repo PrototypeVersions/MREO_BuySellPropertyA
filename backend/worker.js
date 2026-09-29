@@ -3,9 +3,11 @@ import {apiFetch} from "./api.js";
 import {TransactionRoom} from "./rooms.js";
 import {createHandoffToken} from "./handoff.js";
 import {publicError} from "./http.js";
+import {internalResetToken, resetPlatformData} from "./admin.js";
 
 "use strict";
 const C=globalThis.MreoCore;
+const EXCHANGE_DATA_VERSION=2;
 class HttpError extends Error{constructor(message,status=400){super(message);this.status=status;}}
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 const hex=bytes=>Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("");
@@ -41,7 +43,9 @@ function validSubmission(role,data){
 }
 class Exchange{
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
- async fetch(request){return this.ctx.blockConcurrencyWhile(async()=>{try{return await this.route(request);}catch(e){return json({error:publicError(e.status?e.message:e instanceof Error&&!(e instanceof TypeError)?e.message:"The service could not complete this request.")},e.status||400);}});}
+ async clearStorage(){await this.ctx.storage.deleteAll();await this.ctx.storage.put("system:data-version",EXCHANGE_DATA_VERSION);await this.ctx.storage.deleteAlarm();}
+ async ensureDataVersion(){if(await this.ctx.storage.get("system:data-version")===EXCHANGE_DATA_VERSION)return;await resetPlatformData(this.env);await this.clearStorage();}
+ async fetch(request){return this.ctx.blockConcurrencyWhile(async()=>{try{await this.ensureDataVersion();return await this.route(request);}catch(e){return json({error:publicError(e.status?e.message:e instanceof Error&&!(e instanceof TypeError)?e.message:"The service could not complete this request.")},e.status||400);}});}
  async account(request,required=true){const token=(request.headers.get("Authorization")||"").replace(/^Bearer /,""),id=token.split(".")[0];if(!token||!id){if(!required)return null;throw new HttpError("Complete your participant registration first.",401);}
  const a=await this.ctx.storage.get("account:"+id);if(!a||a.expiresAt<Date.now()||!constantEqual(a.tokenHash,await sha(token))){if(!required)return null;throw new HttpError("Your account session has expired. Submit your information again.",401);}return a;}
  publicAccount(a){return {id:a.id,role:a.role,name:a.name,email:a.email,submission:a.submission,creditCents:a.creditCents,connectedTest:!this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")};}
@@ -91,6 +95,11 @@ class Exchange{
  }
  async route(request){
  const url=new URL(request.url),path=url.pathname,method=request.method;
+ if(path==="/internal/reset"&&method==="POST"){
+ const supplied=request.headers.get("X-MREO-Internal-Reset")||"",expected=await internalResetToken(this.env);
+ if(!constantEqual(supplied,expected))throw new HttpError("Reset access denied.",403);
+ await this.clearStorage();return json({ok:true});
+ }
  if(path==="/webhook"&&method==="POST")return this.webhook(request);
  if(path==="/config"&&method==="GET"){
  const stripeConfigured=/^sk_(test|live)_/.test(this.env.STRIPE_SECRET_KEY||""),participationBypass=!this.env.STRIPE_SECRET_KEY&&this.env.ALLOW_LIVE_PAYMENTS!=="true";

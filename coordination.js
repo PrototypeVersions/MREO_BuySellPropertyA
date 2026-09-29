@@ -211,9 +211,10 @@
       document.querySelector(".demo-control-strip")?.setAttribute("hidden", "");
       toolbar.hidden = false;
       if (link) {
-        link.href = workspaceTransaction
-          ? `coordination.html?transaction=${encodeURIComponent(workspaceTransaction)}&section=messages`
-          : "my-properties.html";
+        const conversationRole = ["buyer","seller","provider"].includes(params.get("role")) ? params.get("role") : "";
+        const messageQuery = new URLSearchParams({transaction:workspaceTransaction || "", section:"messages"});
+        if (conversationRole) messageQuery.set("role", conversationRole);
+        link.href = workspaceTransaction ? `coordination.html?${messageQuery.toString()}` : "my-properties.html";
         link.textContent = workspaceTransaction ? "Chat with an MREO agent →" : "Open My properties to chat →";
       }
     }

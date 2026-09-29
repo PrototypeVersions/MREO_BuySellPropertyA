@@ -24,7 +24,7 @@ test("closed auction hands the winning buyer into closing before sale completion
  await expect(page.locator(".demo-control-strip")).toBeHidden();
  await expect(page.locator(".demo-story")).toHaveCount(0);
  await expect(page.locator("#auction-entry-toolbar")).toBeVisible();
- await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-demo-close&section=messages");
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-demo-close&section=messages&role=buyer");
  await expect(page.locator("#coord-record-title")).toContainText("4218 Maple Ridge Drive");
  await expect(page.locator("#acquisition-heading")).toContainText("Seller acceptance and closing");
  await expect(page.getByRole("link",{name:"What comes next ↓"})).toBeVisible();
@@ -43,13 +43,13 @@ test("an older winning-auction URL removes the demo wrapper and recovers its Mes
  await expect(page.locator(".coordination-hero")).toBeHidden();
  await expect(page.locator(".demo-story")).toHaveCount(0);
  await expect(page.locator("#auction-entry-toolbar")).toBeVisible();
- await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-frisco&section=messages");
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-frisco&section=messages&role=buyer");
  await expect.poll(()=>new URL(page.url()).searchParams.get("workspaceTransaction")).toBe("tx-frisco");
  expect(new URL(page.url()).searchParams.has("perspective")).toBe(false);
 });
 
-test("seller can enter the shared closing workspace once the auction closes",async({page})=>{
- await page.goto("/auction.html?id=demo-property&view=seller");
+test("seller can enter closing and carry the seller role into the MREO conversation",async({page})=>{
+ await page.goto("/auction.html?id=demo-property&view=seller&transaction=tx-seller-close");
  const controls=page.locator("#test-controls");
  await expect(controls).toBeVisible();
  if(!(await controls.getAttribute("open"))) await controls.locator("summary").click();
@@ -60,6 +60,9 @@ test("seller can enter the shared closing workspace once the auction closes",asy
  const href=new URL(await workspace.getAttribute("href"),page.url());
  expect(href.searchParams.get("stage")).toBe("won");
  expect(href.searchParams.get("role")).toBe("seller");
+ expect(href.searchParams.get("workspaceTransaction")).toBe("tx-seller-close");
+ await workspace.click();
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-seller-close&section=messages&role=seller");
 });
 
 

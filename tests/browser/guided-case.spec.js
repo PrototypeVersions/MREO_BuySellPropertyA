@@ -128,3 +128,21 @@ test("connected Messages Files and Coordination share records without mixing par
  await expect(page.getByRole("link",{name:"Open full Coordinate page →"})).toHaveAttribute("href",/workspaceTransaction=tx-test/);
  await expect(page.getByRole("textbox",{name:"Message",exact:true})).toBeHidden();await noOverflow(page);
 });
+
+test("an explicit seller conversation opens the Seller and MREO thread for staff",async({page},info)=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("https://api.mreo.test/**",route=>route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,defaultDays:1}}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"staff"}),request:async(path)=>{
+   if(path==="/api/v1/transactions/tx-seller")return {id:"tx-seller",title:"Seller property",kind:"property",status:"active",viewerRole:"agent",participants:[]};
+   if(path.endsWith("/tasks"))return {tasks:[]};if(path.endsWith("/services"))return {services:[]};if(path.endsWith("/events"))return {events:[]};if(path.endsWith("/documents"))return {documents:[]};
+   if(path.includes("/messages"))return {messages:[{id:"seller-message",author_role:"seller",body:path.includes("seller_agent")?"Seller private message":"Wrong private message",created_at:2000}]};
+   throw Error("Live connection omitted in browser test");
+  }};` }));
+ await page.goto("/coordination.html?transaction=tx-seller&section=messages&role=seller");
+ await expect(page.getByRole("button",{name:"Seller ↔ MREO"})).toHaveAttribute("aria-pressed","true");
+ await expect(page.locator(".conversation-feed")).toContainText("Seller private message");
+ await expect(page.locator(".conversation-feed")).not.toContainText("Wrong private message");
+ expect(new URL(page.url()).searchParams.get("role")).toBe("seller");
+ await page.screenshot({path:info.outputPath("seller-thread-selected.png"),fullPage:true});
+});

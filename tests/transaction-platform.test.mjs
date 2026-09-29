@@ -44,6 +44,35 @@ test("one identity can be a buyer in one transaction and seller in another", asy
   assert.deepEqual(new Set(listed.body.transactions.map(item=>item.viewer_role)),new Set(["buyer","seller"]));
 });
 
+test("staff access preserves the user's buyer and seller roles in their own workspaces", async () => {
+  const e=env();
+  const buyer=(await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:{role:"buyer",title:"Buyer property",auctionId:"auction-staff-b"}}),e))).body;
+  const seller=(await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:{role:"seller",title:"Seller property",auctionId:"auction-staff-s"}}),e))).body;
+  const user=e.DB.sqlite.prepare("SELECT id FROM users WHERE auth_subject = ?").get("blake");
+  e.DB.sqlite.prepare("INSERT INTO user_roles (user_id, role, created_at) VALUES (?, 'agent', ?)").run(user.id,Date.now());
+  const listed=(await data(await apiFetch(request("/api/v1/transactions",{user:"blake"}),e))).body.transactions;
+  assert.deepEqual(new Set(listed.map(item=>item.viewer_role)),new Set(["buyer","seller"]));
+  assert.equal((await data(await apiFetch(request(`/api/v1/transactions/${seller.id}`,{user:"blake"}),e))).body.viewerRole,"seller");
+  assert.equal((await data(await apiFetch(request(`/api/v1/transactions/${buyer.id}`,{user:"blake"}),e))).body.viewerRole,"buyer");
+});
+
+test("Reset All is staff-only and preserves sign-in identities while clearing platform data", async () => {
+  const e=env(),objects=new Map([["documents/example.pdf",new Uint8Array([1,2,3])]]);let exchangeResets=0;
+  e.HANDOFF_SIGNING_SECRET="reset-test-secret-at-least-32-bytes";
+  e.DOCUMENTS={list:async()=>({objects:[...objects.keys()].map(key=>({key})),truncated:false}),delete:async keys=>{for(const key of Array.isArray(keys)?keys:[keys])objects.delete(key);}};
+  e.EXCHANGE={idFromName:name=>name,get:()=>({fetch:async request=>{assert.equal(new URL(request.url).pathname,"/internal/reset");assert.ok(request.headers.get("X-MREO-Internal-Reset"));exchangeResets++;return new Response(JSON.stringify({ok:true}),{headers:{"Content-Type":"application/json"}});}})};
+  await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:{role:"buyer",title:"Reset property",auctionId:"auction-reset"}}),e);
+  assert.equal((await data(await apiFetch(request("/api/v1/admin/reset",{method:"POST",user:"outsider",body:{confirmation:"RESET ALL"}}),e))).status,403);
+  const user=e.DB.sqlite.prepare("SELECT id FROM users WHERE auth_subject = ?").get("blake");
+  e.DB.sqlite.prepare("INSERT INTO user_roles (user_id, role, created_at) VALUES (?, 'agent', ?)").run(user.id,Date.now());
+  assert.equal((await data(await apiFetch(request("/api/v1/admin/reset",{method:"POST",user:"blake",body:{confirmation:"reset"}}),e))).status,400);
+  const reset=await data(await apiFetch(request("/api/v1/admin/reset",{method:"POST",user:"blake",body:{confirmation:"RESET ALL"}}),e));
+  assert.equal(reset.status,200);assert.equal(reset.body.ok,true);assert.equal(reset.body.documentsDeleted,1);assert.equal(exchangeResets,1);assert.equal(objects.size,0);
+  assert.equal(e.DB.sqlite.prepare("SELECT count(*) count FROM transactions").get().count,0);
+  assert.equal(e.DB.sqlite.prepare("SELECT count(*) count FROM users").get().count,2);
+  assert.equal(e.DB.sqlite.prepare("SELECT count(*) count FROM user_roles WHERE role = 'agent'").get().count,1);
+});
+
 test("messages are corrected by appending a new audited record", async () => {
   const e=env();
   const created=(await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"alice",body:{role:"buyer",title:"Correction test"}}),e))).body;

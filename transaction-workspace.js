@@ -4,6 +4,7 @@
   if(!transactionId)return;
   const $=id=>document.getElementById(id),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const sections=["auction","messages","coordination","files"];
+  const requestedRole=["buyer","seller","provider"].includes(params.get("role"))?params.get("role"):"";
   let selected=sections.includes(params.get("section"))?params.get("section"):"messages",transaction,thread,vault,socket,refreshing=false,stopped=false;
   const main=document.querySelector("main");
   for(const child of [...main.children])child.hidden=true;
@@ -49,7 +50,7 @@
       '<section id="view-coordination" class="case-view-live" hidden><div class="case-layout"><section class="workspace-card workspace-summary-card"><p class="section-label">Coordination summary</p><h2>Services and next steps</h2><p class="workspace-card-subtitle">See the status of connected work here. Open the full Coordinate page to explore Title / Settlement, Contractors, Realtors, and Rent / Manage without mixing those workflows into Messages.</p><div class="workspace-summary-grid"><div><span>Open actions</span><strong id="coordination-action-count">0</strong></div><div><span>Service requests</span><strong id="coordination-service-count">0</strong></div><div><span>Workspace status</span><strong>'+esc(transaction.status)+'</strong></div></div><div id="service-list" class="task-list compact-service-list"></div><a class="primary-button button-blue" href="'+esc(coordinationUrl)+'">Open full Coordinate page →</a></section><aside class="case-guide"><section class="workspace-card"><h2>Your next actions</h2><div id="coordination-tasks"></div></section></aside></div></section>'+
       '<section id="view-files" class="case-view-live" hidden><section class="workspace-card"><p class="section-label">Your permitted documents</p><h2>Files</h2><p class="workspace-card-subtitle">An index of the same files shared in Messages—not separate copies. Existing shared documents retain their access settings.</p><div id="file-index" class="document-list"></div></section></section>'+
       '<details class="case-records"><summary>Activity and access</summary><p>Messages, files, tasks, and service requests are linked to this transaction. Connected data is saved on the server; the guided demonstration has separate browser-only records.</p><div id="event-list" class="event-list"></div>'+(staff?'<h3>Participants and access</h3><div id="participant-list" class="task-list"></div><form id="participant-form" class="upload-form participant-form"><label>Email<input name="email" type="email" required></label><label>Role<select name="role"><option>buyer</option><option>seller</option><option>provider</option><option>agent</option></select></label><button class="small-button" type="submit">Add existing MREO account</button></form>':"")+'</details>';
-    thread=new TransactionThread($("transaction-thread"),transaction.id,role);
+    thread=new TransactionThread($("transaction-thread"),transaction.id,role,requestedRole);
     const signingNotice=document.createElement("p");signingNotice.id="workspace-signing-notice";signingNotice.setAttribute("role","status");signingNotice.hidden=true;$("workspace-tabs").after(signingNotice);
     vault=new DocumentVault($("document-vault"),transaction,thread);
     vault.onUpdated=documents=>{
@@ -70,7 +71,7 @@
   function showSection(){
     sections.forEach(section=>$("view-"+section).hidden=section!==selected);
     $("workspace-tabs").innerHTML=MreoCaseNavigation.links(transaction,selected);
-    history.replaceState(null,"","coordination.html?transaction="+encodeURIComponent(transaction.id)+"&section="+selected);
+    const next=new URLSearchParams({transaction:transaction.id,section:selected});if(requestedRole)next.set("role",requestedRole);history.replaceState(null,"","coordination.html?"+next.toString());
   }
   async function refresh(){
     if(!thread||refreshing)return;refreshing=true;

@@ -9,6 +9,7 @@ import {downloadDocument, listDocuments, uploadDocument} from "./documents.js";
 import {createSignatureRequest, signingSession, signatureStatus, signwellWebhook} from "./esign.js";
 import {createRoomTicket, notifyRoom} from "./rooms.js";
 import {createServiceRequest, listServiceRequests, updateServiceRequest} from "./services.js";
+import {resetAllData} from "./admin.js";
 
 const match = (path, pattern) => path.match(pattern);
 
@@ -43,6 +44,7 @@ export async function apiFetch(request, env) {
       await run(env, "UPDATE users SET display_name = ?, phone = ?, updated_at = ? WHERE id = ?", displayName, phone || null, now(), user.id);
       return json({ok:true});
     }
+    if (path === "/api/v1/admin/reset" && method === "POST") return json(await resetAllData(request, env, user));
     if (path === "/api/v1/transactions" && method === "GET") return json({transactions:await listTransactions(env, user)});
     if (path === "/api/v1/transactions" && method === "POST") return json(await createTransaction(request, env, user), 201);
     if (path === "/api/v1/agent/transactions" && method === "GET") {

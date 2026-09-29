@@ -6,7 +6,7 @@ import {verifyHandoffToken} from "../backend/handoff.js";
 const C=globalThis.MreoCore;
 function context(){
  const data=new Map();let queue=Promise.resolve(),alarm=null;
- return {data,storage:{get:async k=>data.has(k)?structuredClone(data.get(k)):undefined,put:async(k,v)=>data.set(k,structuredClone(v)),list:async({prefix=""}={})=>new Map([...data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)])),setAlarm:async v=>{alarm=v;},deleteAlarm:async()=>{alarm=null;}},
+ return {data,storage:{get:async k=>data.has(k)?structuredClone(data.get(k)):undefined,put:async(k,v)=>data.set(k,structuredClone(v)),list:async({prefix=""}={})=>new Map([...data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)])),deleteAll:async()=>data.clear(),setAlarm:async v=>{alarm=v;},deleteAlarm:async()=>{alarm=null;}},
  blockConcurrencyWhile(fn){const result=queue.then(fn);queue=result.catch(()=>{});return result;}};
 }
 const env={STRIPE_SECRET_KEY:"sk_test_example",STRIPE_WEBHOOK_SECRET:"whsec_example",HANDOFF_SIGNING_SECRET:"handoff-test-secret-at-least-32-bytes",SITE_URL:"https://example.com/MREO_BuySell"};
