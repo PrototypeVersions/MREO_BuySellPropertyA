@@ -146,3 +146,36 @@ test("an explicit seller conversation opens the Seller and MREO thread for staff
  expect(new URL(page.url()).searchParams.get("role")).toBe("seller");
  await page.screenshot({path:info.outputPath("seller-thread-selected.png"),fullPage:true});
 });
+
+
+test("guided workspace tabs mirror connected workspace summaries",async({page})=>{
+ await page.goto("/demo-case.html?perspective=seller&view=auction");
+ await expect(page.getByRole("heading",{name:"Linked demonstration auction"})).toBeVisible();
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Auction status");
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Bid activity");
+ await area(page,"Coordination").click();
+ await expect(page.getByRole("heading",{name:"Services and next steps"})).toBeVisible();
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Open actions");
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Service requests");
+ await area(page,"Messages").click();
+ await expect(page.getByRole("heading",{name:"Messages with MREO"})).toBeVisible();
+ await expect(page.locator(".conversation-card")).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Add a fictional PDF or document"})).toBeVisible();
+ await area(page,"Files").click();
+ await expect(page.getByRole("heading",{name:"Files"})).toBeVisible();
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Visible files");
+ await expect(page.locator("#case-view .workspace-summary-grid")).toContainText("Pending signatures");
+ await noOverflow(page);
+});
+
+test("guided MREO Agent keeps access to all three private message threads after workspace redesign",async({page})=>{
+ await page.goto("/demo-case.html?perspective=agent&view=messages");
+ const picker=page.locator(".demo-thread-picker");
+ await expect(picker.getByRole("button")).toHaveText(["Buyer ↔ MREO","Seller ↔ MREO","Service Partner ↔ MREO"]);
+ await picker.getByRole("button",{name:"Seller ↔ MREO"}).click();
+ await expect(picker.getByRole("button",{name:"Seller ↔ MREO"})).toHaveAttribute("aria-pressed","true");
+ await expect(page.locator(".case-message-list")).toContainText("fictional seller conversation");
+ await picker.getByRole("button",{name:"Service Partner ↔ MREO"}).click();
+ await expect(picker.getByRole("button",{name:"Service Partner ↔ MREO"})).toHaveAttribute("aria-pressed","true");
+ await expect(page.locator(".case-message-list")).toContainText("fictional provider conversation");
+});

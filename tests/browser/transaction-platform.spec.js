@@ -10,6 +10,8 @@ test("public exploration chooses one perspective with four separate case views",
  await expect(page.locator("#case-tabs [aria-current=page]")).toHaveText("Auction");
  await expect(page.getByRole("textbox")).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Seller",exact:true})).toBeHidden();
+ await expect(page.getByRole("heading",{name:"Linked demonstration auction"})).toBeVisible();
+ await expect(page.locator("#case-view .workspace-summary-grid")).toBeVisible();
 });
 
 test("My MREO explains deployment state without creating a fake account",async({page})=>{

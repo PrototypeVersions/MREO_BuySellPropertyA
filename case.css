@@ -2,3 +2,17 @@
 @media(max-width:850px){.case-layout,.case-view-live .case-layout{grid-template-columns:1fr}.case-guide{grid-template-columns:1fr 1fr}.case-heading{align-items:start}.case-tabs a{padding:12px 17px}.case-message-list{max-height:470px}}
 @media(max-width:560px){.case-shell{width:calc(100% - 28px);padding-top:18px}.case-heading{display:block}.case-heading>button{margin-top:14px}.case-topline{align-items:start}.case-panel,.conversation-card{padding:18px}.case-guide{grid-template-columns:1fr}.case-tabs{gap:0}.case-tabs a{padding:12px 13px;font-size:13px}.case-message{max-width:96%}.case-message-list{min-height:230px}.document-message{grid-template-columns:1fr}.case-view-live .message-form{flex-wrap:wrap}.case-view-live .message-form button{margin-left:auto}.case-view-live .conversation-heading{gap:8px}.case-view-live .conversation-heading h2{font-size:24px}.case-records{overflow-wrap:anywhere}}
 .sample-signature-form{flex-basis:100%;margin:14px 0 0}.sample-signature-preview{padding:16px 20px;background:#fffdf8;border:1px solid var(--line);min-height:80px;font-family:"Brush Script MT","Segoe Script",cursive;font-size:30px;overflow-wrap:anywhere}.sample-signature-consent{display:flex!important;align-items:flex-start;font-size:13px}.sample-signature-consent input{flex:none;width:18px!important;height:18px;min-height:18px;margin:3px 0 0;padding:0;accent-color:var(--blue)}.sample-signature-record{flex-basis:100%;width:100%}.sample-signature-record small{display:block;margin-top:10px;color:var(--muted)}
+
+/* Guided demo workspace parity: reuse the same visual hierarchy as connected property workspaces. */
+.demo-workspace-card{background:#fff;border:1px solid var(--account-line);border-radius:17px;padding:24px;box-shadow:0 12px 34px rgba(16,24,39,.035)}
+.demo-workspace-card.workspace-summary-card{gap:18px}
+.demo-auction-controls{border-top:1px solid var(--account-line);padding-top:18px}
+.demo-message-form{align-items:stretch}.demo-message-form textarea{min-height:82px}.demo-message-form .primary-button{align-self:stretch}
+.demo-document-composer{margin-top:18px}.demo-document-composer .case-actions{margin:0;justify-content:flex-end}
+.demo-request-card h2{margin:0 0 5px}.demo-next-action{margin:18px 0 0;padding-top:14px;border-top:1px solid var(--account-line)}
+.demo-coordination-list{margin-top:4px}.demo-coordination-list .task-item{background:#fafcff}
+.demo-file-summary{margin:4px 0 18px}.demo-file-index{margin-bottom:18px}.demo-file-index .case-file{background:#fafcff}
+.demo-file-index .case-file>span{display:block;color:#667085;font-size:.82rem;margin:3px 0}
+.demo-progress-card ol{padding-left:20px;font-size:13px;line-height:1.7}.demo-progress-card li{padding:3px 0;color:var(--muted)}.demo-progress-card li.done{color:var(--green);font-weight:700}
+.case-guide .workspace-card{background:#eeeadf;border:1px solid var(--line);border-radius:15px;padding:19px}.case-guide .workspace-card h2{font-size:19px;margin-top:0}.case-guide .task-item{background:rgba(255,255,255,.72)}
+@media(max-width:620px){.demo-message-form{flex-wrap:wrap}.demo-message-form .primary-button{width:100%}.demo-document-composer{grid-template-columns:1fr}.demo-document-composer .case-actions{justify-content:flex-start}.demo-workspace-card{padding:18px}}
