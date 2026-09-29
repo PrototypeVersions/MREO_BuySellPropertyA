@@ -101,7 +101,7 @@ test("connected Messages Files and Coordination share records without mixing par
  await expect(page.locator("#connected-transaction-shell > .back-link")).toHaveAttribute("href","my-properties.html");
  await area(page,"Auction").click();
  await expect(page.getByRole("heading",{name:"No auction linked yet"})).toBeVisible();
- await expect(page.getByRole("link",{name:"Open full Auction page →"})).toHaveAttribute("href",/auction\.html\?transaction=tx-test&demo=1/);
+ await expect(page.getByRole("link",{name:"Open full Auction page →"})).toHaveAttribute("href",/auction\.html\?transaction=tx-test&pending=1&demo=1/);
  await area(page,"Messages").click();
  const feed=page.locator(".conversation-feed");
  await expect(feed).toContainText("Buyer private message");await expect(feed).not.toContainText("Seller private");

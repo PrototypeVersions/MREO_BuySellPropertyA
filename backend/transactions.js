@@ -16,6 +16,10 @@ export async function participation(env, transactionId, user) {
 }
 
 const viewTransaction = row => ({...row, property:parseJSON(row.property_json, {}), property_json:undefined});
+const safePropertyImage = value => {
+  const image=clean(value,2000);
+  return /^(https:\/\/|assets\/)/i.test(image) ? image : "";
+};
 
 export async function listTransactions(env, user) {
   const staff = await hasRole(env, user.id, "agent") || await hasRole(env, user.id, "admin");
@@ -51,6 +55,7 @@ export async function createTransaction(request, env, user) {
     const reference = clean(data.reference, 120);
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{7,119}$/.test(reference)) throw new HttpError("The property intake reference is invalid.", 400, "invalid_intake_reference");
     const relatedAuctionId = clean(data.auctionId, 120) || null;
+    const mediaKey = clean(data.mediaKey, 120), image = safePropertyImage(data.image);
     claims = {
       auctionId:`intake-${reference}`,
       role:data.role,
@@ -58,7 +63,7 @@ export async function createTransaction(request, env, user) {
       title:data.title,
       kind:data.kind,
       amount:data.amount,
-      property:{id:relatedAuctionId || `intake-${reference}`, stage:"intake", relatedAuctionId, demo:data.demo === true}
+      property:{id:relatedAuctionId || `intake-${reference}`, stage:"intake", relatedAuctionId, demo:data.demo === true, ...(mediaKey?{mediaKey}:{}), ...(image?{image}:{})}
     };
   } else {
     claims = env.AUTH_MODE === "test" ? data : await verifyHandoffToken(env, data.handoffToken);
@@ -70,7 +75,10 @@ export async function createTransaction(request, env, user) {
   if (!title) throw new HttpError("Provide the property or portfolio title.", 400, "title_required");
   const kind = claims.kind === "portfolio" ? "portfolio" : "property", intake = claims.stage === "intake";
   const amount = Number.isFinite(Number(claims.amount)) && Number(claims.amount) > 0 ? Math.round(Number(claims.amount) * 100) : null;
-  const property = typeof claims.property === "object" && claims.property ? claims.property : {};
+  const property = typeof claims.property === "object" && claims.property ? {...claims.property} : {};
+  const mediaKey=clean(property.mediaKey,120), image=safePropertyImage(property.image);
+  if (mediaKey) property.mediaKey=mediaKey; else delete property.mediaKey;
+  if (image) property.image=image; else delete property.image;
   if (!property.id) property.id = clean(property.relatedAuctionId, 120) || sourceAuctionId;
   if (sourceAuctionId) {
     const existing = await one(env, "SELECT * FROM transactions WHERE source_auction_id = ?", sourceAuctionId);

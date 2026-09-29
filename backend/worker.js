@@ -28,10 +28,11 @@ async function verifyStripeSignature(raw,header,secret,now=Date.now()){
  if(!signatures.some(s=>constantEqual(s,digest)))throw new HttpError("Invalid webhook signature.");
 }
 function validDetails(details){const name=String(details?.name||"").trim().slice(0,120),email=String(details?.email||"").trim().slice(0,254);if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new HttpError("Provide your name and a valid email address.");return {name,email};}
+function safeMediaImage(value){const image=String(value||"").trim().slice(0,2000);return /^(https:\/\/|assets\/)/i.test(image)?image:"";}
 function validSubmission(role,data){
  const title=String(data?.title||"").trim().slice(0,300);if(!title)throw new HttpError("Provide a property address or portfolio name.");
  const details={};for(const [k,v] of Object.entries(data?.details||{}).slice(0,60))if(typeof v==="string")details[String(k).slice(0,80)]=v.slice(0,4000);
- if(role==="buyer")return {title,auctionId:String(data.auctionId||"").slice(0,100),proposedOffer:String(data.proposedOffer||"").slice(0,30),details,draftId:crypto.randomUUID()};
+ if(role==="buyer")return {title,auctionId:String(data.auctionId||"").slice(0,100),mediaKey:String(data.mediaKey||"").slice(0,120),image:safeMediaImage(data.image),proposedOffer:String(data.proposedOffer||"").slice(0,30),details,draftId:crypto.randomUUID()};
  const minimum=C.money(data.minimum);if(minimum<1||minimum>999999999000)throw new HttpError("Enter a valid seller minimum.");const days=Number(data.days);if(![1,21].includes(days))throw new HttpError("Choose 1 or 21 days.");
  const kind=data.kind==="portfolio"?"portfolio":"property";
  const portfolio=kind==="portfolio"?C.normalizePortfolio(C.portfolioMatrix(Array.isArray(data.portfolio)?data.portfolio:[])):[];
@@ -45,11 +46,21 @@ class Exchange{
  const a=await this.ctx.storage.get("account:"+id);if(!a||a.expiresAt<Date.now()||!constantEqual(a.tokenHash,await sha(token))){if(!required)return null;throw new HttpError("Your account session has expired. Submit your information again.",401);}return a;}
  publicAccount(a){return {id:a.id,role:a.role,name:a.name,email:a.email,submission:a.submission,creditCents:a.creditCents,connectedTest:!this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")};}
  async rate(key,limit,windowMs=3600000){const k="rate:"+await sha(key),now=Date.now(),r=await this.ctx.storage.get(k)||{start:now,count:0};if(now-r.start>=windowMs){r.start=now;r.count=0;}r.count++;if(r.count>limit)throw new HttpError("Too many attempts. Please try again later.",429);await this.ctx.storage.put(k,r);}
- async allAuctions(){return [...(await this.ctx.storage.list({prefix:"auction:"})).values()];}
+ async enrichAuction(auction){
+  if(!auction||auction.example)return auction;
+  const seller=auction.sellerId?await this.ctx.storage.get("account:"+auction.sellerId):null,submission=seller?.submission||{};
+  let changed=false;
+  if(!auction.mediaKey&&submission.draftId){auction.mediaKey=submission.draftId;changed=true;}
+  if((!auction.details||!Object.keys(auction.details).length)&&submission.details){auction.details=submission.details;changed=true;}
+  if(changed)await this.ctx.storage.put("auction:"+auction.id,auction);
+  return auction;
+ }
+ async allAuctions(){return Promise.all([...(await this.ctx.storage.list({prefix:"auction:"})).values()].map(auction=>this.enrichAuction(auction)));}
  async schedule(){const active=(await this.allAuctions()).filter(a=>a.status==="active");if(active.length)await this.ctx.storage.setAlarm(Math.max(Date.now()+1000,Math.min(...active.map(a=>a.endsAt))));else await this.ctx.storage.deleteAlarm();}
  async intakeHandoff(a,relatedAuctionId=null){
  let amount=0;try{amount=C.money(a.role==="buyer"?a.submission.proposedOffer:a.submission.minimum);}catch{}
- return createHandoffToken(this.env,{auctionId:"intake-"+(a.submission.draftId||a.id),role:a.role,stage:"intake",title:a.submission.title,kind:a.submission.kind||"property",amount,property:{stage:"intake",relatedAuctionId:relatedAuctionId||a.submission.auctionId||null}});
+ const mediaKey=a.role==="seller"?a.submission.draftId:a.submission.mediaKey||"";
+ return createHandoffToken(this.env,{auctionId:"intake-"+(a.submission.draftId||a.id),role:a.role,stage:"intake",title:a.submission.title,kind:a.submission.kind||"property",amount,property:{stage:"intake",relatedAuctionId:relatedAuctionId||a.submission.auctionId||null,...(mediaKey?{mediaKey}:{}),...(a.submission.image?{image:a.submission.image}:{})}});
  }
  async settle(){
  for(const a of await this.allAuctions()){if(a.status!=="active"||Date.now()<a.endsAt)continue;C.closeAuction(a);await this.ctx.storage.put("auction:"+a.id,a);
@@ -119,10 +130,10 @@ class Exchange{
  }
  await this.settle();
  if((()=>{const m=path.match(/^\/auctions\/([a-zA-Z0-9-]+)\/handoff$/);return m&&method==="POST"?m:null;})()){
- const auctionId=path.split("/")[2],auction=await this.ctx.storage.get("auction:"+auctionId);if(!auction)throw new HttpError("Auction not found.",404);
+ const auctionId=path.split("/")[2],auction=await this.enrichAuction(await this.ctx.storage.get("auction:"+auctionId));if(!auction)throw new HttpError("Auction not found.",404);
  const account=await this.account(request),isSeller=account.id===auction.sellerId,isWinner=account.id===auction.winnerId;
  if(auction.status!=="closed"||(!isSeller&&!isWinner))throw new HttpError("Only the listing seller or winning buyer can open this transaction.",403);
- const highest=C.highest(auction);const token=await createHandoffToken(this.env,{auctionId:auction.id,role:isSeller?"seller":"buyer",legacyAccountId:account.id,title:auction.title,kind:auction.kind||"property",amount:highest?.amount||0,property:{portfolioCount:auction.portfolioCount||auction.portfolio?.length||0}});
+ const highest=C.highest(auction);const token=await createHandoffToken(this.env,{auctionId:auction.id,role:isSeller?"seller":"buyer",legacyAccountId:account.id,title:auction.title,kind:auction.kind||"property",amount:highest?.amount||0,property:{portfolioCount:auction.portfolioCount||auction.portfolio?.length||0,...(auction.mediaKey?{mediaKey:auction.mediaKey}:{})}});
  return json({handoffToken:token});
  }
  if(path==="/activate"&&method==="POST"){
@@ -131,11 +142,11 @@ class Exchange{
  if(a.submission.auctionId)return json({auctionId:a.submission.auctionId,handoffToken:await this.intakeHandoff(a,a.submission.auctionId)});
  const draft=a.submission;if(this.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")&&draft.days!==21)throw new HttpError("Use the 21-day standard duration for live auctions.");
  const id="auction-"+draft.draftId,auction=C.createAuction({id,title:draft.title,sellerId:a.id,minimum:draft.minimum,days:draft.days,kind:draft.kind,portfolioCount:draft.portfolio.length,demo:false});
- auction.example=false;auction.portfolioCount=draft.portfolio.length;
+ auction.example=false;auction.portfolioCount=draft.portfolio.length;auction.mediaKey=draft.draftId||"";auction.details=draft.details||{};
  await this.ctx.storage.put("auction:"+id,auction);if(draft.portfolio.length)await this.ctx.storage.put("portfolio:"+id,draft.portfolio);
  a.submission.auctionId=id;await this.ctx.storage.put("account:"+a.id,a);await this.schedule();return json({auctionId:id,handoffToken:await this.intakeHandoff(a,id)},201);
  }
- if(path==="/auctions"&&method==="GET")return json({auctions:(await this.allAuctions()).map(({id,title,kind,reserve,portfolioCount,status,endsAt,example})=>({id,title,kind,reserve,portfolioCount,status,endsAt,example}))});
+ if(path==="/auctions"&&method==="GET")return json({auctions:(await this.allAuctions()).map(({id,title,kind,reserve,portfolioCount,status,endsAt,example,mediaKey,details})=>({id,title,kind,reserve,portfolioCount,status,endsAt,example,mediaKey:mediaKey||"",details:details||{}}))});
  if(path==="/notifications"&&method==="GET"){
  const account=await this.account(request),notices=[...(await this.ctx.storage.list({prefix:"notice:"+account.id+":"})).values()];
  // Also redact highest amounts from notifications saved before blind bidding.
@@ -143,7 +154,7 @@ class Exchange{
  return json({notifications});
  }
  const match=path.match(/^\/auctions\/([a-zA-Z0-9-]+)(\/bids)?$/);
- if(match){const a=await this.ctx.storage.get("auction:"+match[1]);if(!a)throw new HttpError("Auction not found.",404);
+ if(match){const a=await this.enrichAuction(await this.ctx.storage.get("auction:"+match[1]));if(!a)throw new HttpError("Auction not found.",404);
  if(match[2]&&method==="POST"){
  const account=await this.account(request);if(account.role!=="buyer"||account.creditCents<100)throw new HttpError("Verified buyer participation is required.",403);
  const data=await bodyJSON(request);if(a.bids.length>=10000)throw new HttpError("This auction has reached its bid limit.");

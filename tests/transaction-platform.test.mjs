@@ -70,10 +70,10 @@ test("intake creates an active private conversation and hides other participant 
 });
 
 test("authenticated intake appears immediately, is idempotent, and cannot be claimed by another account", async () => {
-  const e=env(),intake={intake:true,reference:"draft-buyer-12345678",role:"buyer",title:"2605 Preston Meadow Court",kind:"property",amount:551000,auctionId:"demo-plano",demo:true};
+  const e=env(),intake={intake:true,reference:"draft-buyer-12345678",role:"buyer",title:"2605 Preston Meadow Court",kind:"property",amount:551000,auctionId:"demo-plano",mediaKey:"media-plano",image:"assets/property-placeholder.svg",demo:true};
   const created=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:intake}),e));
   assert.equal(created.status,201);assert.equal(created.body.status,"active");assert.equal(created.body.source_auction_id,"intake-draft-buyer-12345678");
-  assert.deepEqual(created.body.property,{id:"demo-plano",stage:"intake",relatedAuctionId:"demo-plano",demo:true});
+  assert.deepEqual(created.body.property,{id:"demo-plano",stage:"intake",relatedAuctionId:"demo-plano",demo:true,mediaKey:"media-plano",image:"assets/property-placeholder.svg"});
   const repeated=await data(await apiFetch(request("/api/v1/transactions",{method:"POST",user:"blake",body:{...intake,amount:552000}}),e));
   assert.equal(repeated.status,201);assert.equal(repeated.body.id,created.body.id);assert.equal(repeated.body.amount_cents,55200000);
   const listed=await data(await apiFetch(request("/api/v1/transactions",{user:"blake"}),e));

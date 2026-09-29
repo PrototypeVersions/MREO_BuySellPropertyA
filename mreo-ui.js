@@ -97,9 +97,10 @@ async function createIntakeWorkspace(account,role){
  if(!submission?.draftId||!globalThis.MreoIdentity?.connected())return null;
  const user=await MreoIdentity.currentUser();
  if(!user)return null;
+ const mediaKey=role==="seller"?submission.draftId:submission.mediaKey||"";
  return MreoIdentity.request("/api/v1/transactions",{method:"POST",body:JSON.stringify({
   intake:true,reference:submission.draftId,role,title:submission.title,kind:submission.kind||"property",
-  amount:role==="seller"?submission.minimum:submission.proposedOffer,
+  amount:role==="seller"?submission.minimum:submission.proposedOffer,mediaKey,image:submission.image||"",
   auctionId:submission.auctionId||"",demo:!!S.demo
  })});
 }
