@@ -73,3 +73,46 @@ test("sample signing requires a typed name and consent, including previously sim
  assert.equal(state.signatureRequests[0].method,"typed");
  assert.throws(()=>act(state,"sign",{documentId,signatureName:"Someone Else",consent:true}),/Request/);
 });
+
+
+test("guided demo exposes the same four coordination service choices as the main Coordinate area",()=>{
+ assert.deepEqual(Object.values(SERVICES),["Title / settlement","Contractors","Realtors","Rental / property management"]);
+});
+
+test("title service seeds buyer seller and provider conversations for the MREO Agent",()=>{
+ const state=createScenario("agent");
+ act(state,"requestService",{thread:"buyer",service:"title",notes:"Open title"});
+ const service=state.serviceRequests[0];
+ assert.deepEqual(service.threadRoles,["buyer","seller","provider"]);
+ for(const role of ["buyer","seller","provider"]){
+  const messages=conversation(state,role).filter(item=>item.serviceId===service.id);
+  assert.ok(messages.length>=2,role+" should receive title coordination messages");
+  assert.ok(messages.some(item=>item.author==="agent"));
+ }
+ assert.match(conversation(state,"buyer").filter(item=>item.serviceId===service.id).map(item=>item.body).join(" "),/vesting/i);
+ assert.match(conversation(state,"seller").filter(item=>item.serviceId===service.id).map(item=>item.body).join(" "),/payoff/i);
+ assert.match(conversation(state,"provider").filter(item=>item.serviceId===service.id).map(item=>item.body).join(" "),/ownership|title/i);
+});
+
+test("contractor and realtor services connect one participant thread with the provider while rentals connect all three",()=>{
+ const contractor=createScenario("agent");act(contractor,"requestService",{thread:"seller",service:"contractors"});
+ assert.deepEqual(contractor.serviceRequests[0].threadRoles,["seller","provider"]);
+ assert.equal(conversation(contractor,"buyer").filter(item=>item.serviceId===contractor.serviceRequests[0].id).length,0);
+ assert.ok(conversation(contractor,"seller").some(item=>item.serviceId===contractor.serviceRequests[0].id));
+ assert.ok(conversation(contractor,"provider").some(item=>item.serviceId===contractor.serviceRequests[0].id));
+
+ const realtor=createScenario("agent");act(realtor,"requestService",{thread:"buyer",service:"realtors"});
+ assert.deepEqual(realtor.serviceRequests[0].threadRoles,["buyer","provider"]);
+ assert.equal(conversation(realtor,"seller").filter(item=>item.serviceId===realtor.serviceRequests[0].id).length,0);
+
+ const rental=createScenario("agent");act(rental,"requestService",{thread:"provider",service:"rentals"});
+ assert.deepEqual(rental.serviceRequests[0].threadRoles,["buyer","seller","provider"]);
+});
+
+test("multi-thread service completion shares one report record with every involved thread",()=>{
+ const state=createScenario("agent");act(state,"requestService",{thread:"buyer",service:"title"});
+ const service=state.serviceRequests[0];act(state,"advanceService",{serviceId:service.id});act(state,"advanceService",{serviceId:service.id});
+ const doc=state.documents.find(item=>item.id===service.documentId);
+ assert.deepEqual(doc.sharedWith,["buyer","seller","provider"]);
+ for(const role of ["buyer","seller","provider"])assert.ok(conversation(state,role).some(item=>item.documentId===doc.id&&item.serviceId===service.id));
+});

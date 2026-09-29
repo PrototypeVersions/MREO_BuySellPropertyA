@@ -1,7 +1,7 @@
 // The guided demonstration owns only synthetic, run-scoped browser records.
 // No connected identity, payment, auction, document, or signing API is used here.
 export const ROLES = {buyer:"Buyer", seller:"Seller", agent:"MREO Agent", provider:"Service Partner"};
-export const SERVICES = {title:"Title / settlement", inspection:"Inspection", contractors:"Repairs / improvements", realtors:"Representation", rentals:"Rent / manage"};
+export const SERVICES = {title:"Title / settlement", contractors:"Contractors", realtors:"Realtors", rentals:"Rental / property management"};
 const uuid = prefix => prefix + "_" + crypto.randomUUID();
 const stamp = () => Date.now();
 export const namespace = path => "mreo:guided-demo:v1:" + path.replace(/[^/]*$/, "");
@@ -34,6 +34,87 @@ function addDocument(state,threadRole,kind) {
   state.documents.push(document);
   message(state,threadRole,state.perspective,"Shared a sample document.",{documentId:document.id});
   record(state,"document.shared",document.id,document.filename,threadRole);
+  return document;
+}
+function serviceParticipant(thread) {
+  return thread==="buyer"||thread==="seller"?thread:"seller";
+}
+function serviceThreads(type,thread) {
+  if(type==="title"||type==="rentals")return ["buyer","seller","provider"];
+  if(type==="contractors"||type==="realtors")return [serviceParticipant(thread),"provider"];
+  return [thread];
+}
+const serviceConversation={
+  title:{
+    buyer:[
+      ["agent","Title / settlement has been opened with Northstar Title. Please confirm the vesting name for the buyer and be ready to review verified closing-fund instructions."],
+      ["buyer","Vesting will be Alex Morgan. I will send closing funds only after the title company provides verified instructions through the closing process."]
+    ],
+    seller:[
+      ["agent","Title / settlement is open. Please provide the fictional payoff authorization, lien information, and the seller details needed for the closing package."],
+      ["seller","I received the title request. I will provide the sample payoff authorization and seller information for the closing file."]
+    ],
+    provider:[
+      ["agent","MREO is sending the fictional property packet and winning transaction record. Please open title, review ownership and exceptions, and return preliminary closing requirements."],
+      ["provider","Northstar Title opened the sample file. We will review ownership, taxes, recorded exceptions, and the settlement requirements, then report the next items through MREO."]
+    ]
+  },
+  contractors:{
+    buyer:[
+      ["agent","A contractor estimate has been requested for the buyer. Please identify any repair items you want priced before the sample closing."],
+      ["buyer","Please prioritize safety items, HVAC condition, and a separate estimate for cosmetic improvements."]
+    ],
+    seller:[
+      ["agent","A contractor walkthrough has been requested for the seller. Please confirm access and identify any items you may want addressed before closing."],
+      ["seller","Access is available. Please separate required repairs from optional improvements in the estimate."]
+    ],
+    provider:[
+      ["agent","MREO is requesting a fictional contractor scope and estimate for the property. Please separate urgent repairs from optional improvements and propose an inspection time."],
+      ["provider","Blue Oak Contractors can inspect Tuesday afternoon and return an itemized sample scope with labor, materials, and estimated timing."]
+    ]
+  },
+  realtors:{
+    buyer:[
+      ["agent","MREO is coordinating a fictional local Realtor for the buyer. Please note any walkthrough, neighborhood, or closing-access questions you want the agent to handle."],
+      ["buyer","I would like a final walkthrough and local access help before closing."]
+    ],
+    seller:[
+      ["agent","MREO is coordinating a fictional Realtor for the seller. Please confirm any local access, property handoff, or closing-support needs."],
+      ["seller","Please coordinate the final property handoff and confirm the lockbox can be removed after closing."]
+    ],
+    provider:[
+      ["agent","A fictional Realtor assignment is ready. Please coordinate local access and the requested transaction support through MREO rather than contacting the other participant directly."],
+      ["provider","Cedar Lane Realty can handle the walkthrough, local access, and closing-day handoff and will post updates here."]
+    ]
+  },
+  rentals:{
+    buyer:[
+      ["agent","Rental / property management onboarding can begin after closing. Please confirm the buyer's preferred rent-collection, maintenance, and tenant-communication setup."],
+      ["buyer","Please use online rent collection and route maintenance requests through the management team."]
+    ],
+    seller:[
+      ["agent","For the fictional management transition, please provide the current lease, deposit record, rent ledger, keys, and any open maintenance items."],
+      ["seller","I will provide the sample lease, deposit ledger, keys, and the current maintenance notes for transfer."]
+    ],
+    provider:[
+      ["agent","MREO is opening a fictional rental / property management assignment. Please review the lease package, tenant transition, rent collection, and maintenance setup."],
+      ["provider","Northline Property Management received the sample assignment and will prepare tenant onboarding, rent collection, and maintenance procedures."]
+    ]
+  }
+};
+function seedServiceConversation(state,service) {
+  for(const threadRole of service.threadRoles){
+    for(const [author,body] of serviceConversation[service.type]?.[threadRole]||[]){
+      message(state,threadRole,author,body,{serviceId:service.id});
+    }
+  }
+}
+function addServiceReport(state,service) {
+  const sharedWith=[...new Set(service.threadRoles)];
+  const document={id:uuid("document"),transactionId:state.transaction.id,filename:"Sample "+SERVICES[service.type]+" report.pdf",kind:"report",version:1,status:"available",sharedWith,createdAt:stamp(),updatedAt:stamp()};
+  state.documents.push(document);
+  for(const threadRole of sharedWith)message(state,threadRole,"agent","The fictional "+SERVICES[service.type]+" report is ready. Coordination and Files reference this same record.",{serviceId:service.id,documentId:document.id});
+  record(state,"document.shared",document.id,document.filename);
   return document;
 }
 export function visibleDocuments(state,role=state.perspective) {
@@ -86,14 +167,21 @@ export function act(state,type,payload={}) {
   } else if(type==="requestService") {
     if(!SERVICES[payload.service])throw Error("Choose a service.");
     if(state.serviceRequests.some(item=>item.type===payload.service&&item.status!=="complete"))throw Error("This service already has an open request.");
-    const service={id:uuid("service"),transactionId:state.transaction.id,propertyId:state.property.id,type:payload.service,status:"proposed",ownerRole:thread,notes:String(payload.notes||"").trim().slice(0,2000),createdAt:stamp(),updatedAt:stamp()};
-    state.serviceRequests.push(service);message(state,thread,"agent","A fictional provider has proposed the next step. Review it in Coordination.",{serviceId:service.id});
+    const threadRoles=serviceThreads(payload.service,thread);
+    const service={id:uuid("service"),transactionId:state.transaction.id,propertyId:state.property.id,type:payload.service,status:"proposed",ownerRole:thread,threadRoles,notes:String(payload.notes||"").trim().slice(0,2000),createdAt:stamp(),updatedAt:stamp()};
+    state.serviceRequests.push(service);seedServiceConversation(state,service);
     record(state,"service.proposed",service.id,SERVICES[service.type]+" proposal ready",thread);
   } else if(type==="advanceService") {
     const service=state.serviceRequests.find(item=>item.id===payload.serviceId);
     if(!service)throw Error("Service request not found.");
-    if(service.status==="proposed") {service.status="scheduled";message(state,service.ownerRole,"agent","The sample proposal is approved. Work is scheduled.",{serviceId:service.id});}
-    else if(service.status==="scheduled") {service.status="complete";const doc=addDocument(state,service.ownerRole,"report");service.documentId=doc.id;message(state,service.ownerRole,"agent","The provider's sample report is ready. Coordination and Files reference this same record.",{serviceId:service.id,documentId:doc.id});}
+    service.threadRoles=service.threadRoles||serviceThreads(service.type,service.ownerRole);
+    if(service.status==="proposed") {
+      service.status="scheduled";
+      for(const threadRole of service.threadRoles)message(state,threadRole,"agent","The fictional "+SERVICES[service.type]+" proposal is approved and the next step is scheduled.",{serviceId:service.id});
+    }
+    else if(service.status==="scheduled") {
+      service.status="complete";const doc=addServiceReport(state,service);service.documentId=doc.id;
+    }
     else return state;
     service.updatedAt=stamp();record(state,"service."+service.status,service.id,SERVICES[service.type]+" "+service.status,service.ownerRole);
   } else if(type==="complete") {
@@ -110,6 +198,13 @@ export function loadScenario(storage,prefix,id=null) {
   try {
     const selected=id||storage.getItem(prefix+"active");if(!selected)return null;
     const state=JSON.parse(storage.getItem(prefix+"run:"+selected)||"null");
-    return state?.schemaVersion===1&&state.id===selected&&ROLES[state.perspective]?state:null;
+    if(state?.schemaVersion===1&&state.id===selected&&ROLES[state.perspective]){
+      for(const service of state.serviceRequests||[]){
+        if(service.type==="inspection")service.type="contractors";
+        service.threadRoles=service.threadRoles||serviceThreads(service.type,service.ownerRole||state.perspective);
+      }
+      return state;
+    }
+    return null;
   } catch {return null;}
 }

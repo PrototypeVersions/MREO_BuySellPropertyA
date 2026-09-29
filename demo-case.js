@@ -1,4 +1,4 @@
-import {ROLES,SERVICES,namespace,createScenario,loadScenario,saveScenario,act,conversation,visibleDocuments} from "./demo-store.js?v=20260928-signing";
+import {ROLES,SERVICES,namespace,createScenario,loadScenario,saveScenario,act,conversation,visibleDocuments} from "./demo-store.js?v=20260929-service-conversations";
 const $=id=>document.getElementById(id),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const query=new URLSearchParams(location.search),prefix=namespace(location.pathname),views={auction:"Auction",messages:"Messages",coordination:"Coordination",files:"Files"};
 let storage=null;try{storage=localStorage;}catch{}

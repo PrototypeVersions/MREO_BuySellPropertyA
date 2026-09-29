@@ -179,3 +179,44 @@ test("guided MREO Agent keeps access to all three private message threads after 
  await expect(picker.getByRole("button",{name:"Service Partner ↔ MREO"})).toHaveAttribute("aria-pressed","true");
  await expect(page.locator(".case-message-list")).toContainText("fictional provider conversation");
 });
+
+
+test("guided Coordinate menu matches main service menu and title auto-populates all Agent message threads",async({page})=>{
+ await page.goto("/demo-case.html?perspective=agent&view=coordination");
+ await expect(page.locator('#demo-service select[name="service"] option')).toHaveText(["Title / settlement","Contractors","Realtors","Rental / property management"]);
+ await page.locator('#demo-service select[name="service"]').selectOption("title");
+ await page.getByRole("button",{name:"Request sample service"}).click();
+ await area(page,"Messages").click();
+ const picker=page.locator(".demo-thread-picker");
+ await picker.getByRole("button",{name:"Buyer ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).toContainText("vesting name");
+ await picker.getByRole("button",{name:"Seller ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).toContainText("payoff authorization");
+ await picker.getByRole("button",{name:"Service Partner ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).toContainText("Northstar Title");
+});
+
+test("guided contractor and rental services create the intended private-thread conversations",async({page})=>{
+ await page.goto("/demo-case.html?perspective=agent&view=messages");
+ const picker=page.locator(".demo-thread-picker");
+ await picker.getByRole("button",{name:"Seller ↔ MREO"}).click();
+ await area(page,"Coordination").click();
+ await page.locator('#demo-service select[name="service"]').selectOption("contractors");
+ await page.getByRole("button",{name:"Request sample service"}).click();
+ await area(page,"Messages").click();
+ await picker.getByRole("button",{name:"Seller ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).toContainText("contractor walkthrough");
+ await picker.getByRole("button",{name:"Service Partner ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).toContainText("Blue Oak Contractors");
+ await picker.getByRole("button",{name:"Buyer ↔ MREO"}).click();
+ await expect(page.locator(".case-message-list")).not.toContainText("Blue Oak Contractors");
+
+ await area(page,"Coordination").click();
+ await page.locator('#demo-service select[name="service"]').selectOption("rentals");
+ await page.getByRole("button",{name:"Request sample service"}).click();
+ await area(page,"Messages").click();
+ for(const [thread,text] of [["Buyer ↔ MREO","rent-collection"],["Seller ↔ MREO","deposit record"],["Service Partner ↔ MREO","Northline Property Management"]]){
+  await picker.getByRole("button",{name:thread}).click();
+  await expect(page.locator(".case-message-list")).toContainText(text);
+ }
+});
