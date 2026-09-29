@@ -7,12 +7,12 @@ import {verifyHandoffToken} from "./handoff.js";
 
 export async function participation(env, transactionId, user) {
   const staff = await hasRole(env, user.id, "agent") || await hasRole(env, user.id, "admin");
-  if (staff) return {transaction_id:transactionId, user_id:user.id, role:"agent", staff:true};
   const row = await one(env, `SELECT * FROM transaction_participants
     WHERE transaction_id = ? AND user_id = ? AND status = 'active'
     ORDER BY CASE role WHEN 'buyer' THEN 1 WHEN 'seller' THEN 2 ELSE 3 END LIMIT 1`, transactionId, user.id);
+  if (row) return staff ? {...row, staff:true} : row;
+  if (staff) return {transaction_id:transactionId, user_id:user.id, role:"agent", staff:true};
   if (!row) throw new HttpError("You do not have access to this transaction.", 403, "transaction_forbidden");
-  return row;
 }
 
 const viewTransaction = row => ({...row, property:parseJSON(row.property_json, {}), property_json:undefined});
@@ -24,9 +24,11 @@ const safePropertyImage = value => {
 export async function listTransactions(env, user) {
   const staff = await hasRole(env, user.id, "agent") || await hasRole(env, user.id, "admin");
   const rows = staff
-    ? await all(env, `SELECT t.*, 'agent' viewer_role,
+    ? await all(env, `SELECT t.*, COALESCE((SELECT p.role FROM transaction_participants p
+          WHERE p.transaction_id = t.id AND p.user_id = ? AND p.status = 'active'
+          ORDER BY CASE role WHEN 'buyer' THEN 1 WHEN 'seller' THEN 2 WHEN 'provider' THEN 3 ELSE 4 END LIMIT 1), 'agent') viewer_role,
         (SELECT count(*) FROM tasks task WHERE task.transaction_id = t.id AND task.status = 'action') action_count
-        FROM transactions t ORDER BY t.updated_at DESC LIMIT 200`)
+        FROM transactions t ORDER BY t.updated_at DESC LIMIT 200`, user.id)
     : await all(env, `SELECT t.*, p.role viewer_role,
         (SELECT count(*) FROM tasks task WHERE task.transaction_id = t.id AND task.status = 'action'
           AND (task.assigned_user_id = p.user_id OR (task.assigned_user_id IS NULL AND task.assigned_role = p.role))) action_count

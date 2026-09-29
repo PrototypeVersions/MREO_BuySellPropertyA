@@ -3,11 +3,11 @@
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 
   class TransactionThread {
-    constructor(root, transactionId, viewerRole) {
+    constructor(root, transactionId, viewerRole, preferredRole = "") {
       this.root = root;
       this.transactionId = transactionId;
       this.viewerRole = viewerRole;
-      this.thread = viewerRole === "agent" ? "buyer_agent" : null;
+      this.thread = viewerRole === "agent" ? (["buyer","seller","provider"].includes(preferredRole) ? preferredRole : "buyer") + "_agent" : null;
       this.messages = [];
       this.documents = [];
       this.events = [];
