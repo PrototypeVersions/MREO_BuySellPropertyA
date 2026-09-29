@@ -78,3 +78,20 @@ test("the full Coordinate page carries a workspace transaction into its service 
   await expect(title).toHaveAttribute("href",/transaction=tx-42/);
   await expect(title).toHaveAttribute("href",/service=title/);
 });
+
+
+test("portfolio workspace Auction tab recovers the matching working auction",async({page})=>{
+  await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG={mode:"connected",apiBase:"https://api.mreo.test"};'}));
+  await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+    globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"buyer-user"}),
+      request:async(path)=>{
+        if(path==="/api/v1/transactions/tx-portfolio")return {id:"tx-portfolio",title:"Illustrative REO portfolio · 150 properties",kind:"property",status:"active",viewerRole:"buyer",property:{demo:true}};
+        throw Error("Unexpected identity request: "+path);
+      }};
+  `}));
+  await page.goto("/auction.html?transaction=tx-portfolio&pending=1&demo=1");
+  await expect(page).toHaveURL(/auction\.html\?transaction=tx-portfolio&id=demo-portfolio&view=buyer&demo=1$/);
+  await expect(page.locator("#auction-title")).toHaveText("Illustrative REO portfolio · 150 properties");
+  await expect(page.locator("#auction-content")).toBeVisible();
+  await expect(page.getByRole("heading",{name:"No active auction for this property"})).toHaveCount(0);
+});

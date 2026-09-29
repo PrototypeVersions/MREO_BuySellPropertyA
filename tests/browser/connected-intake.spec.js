@@ -197,3 +197,40 @@ test("workspace demo auction summary counts the buyer's real bid and shows win o
  });
  await expect(page.locator("#auction-summary-timing")).toHaveText("You did not win");
 });
+
+
+test("portfolio buyer interest preserves the portfolio auction relationship",async({page})=>{
+ const intakes=[];
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"clerk-user"}),openSignIn:async()=>{},
+   request:async(path,options={})=>{const response=await fetch("https://identity.mreo.test"+path,options);return response.json();}};
+ `}));
+ await page.route("https://identity.mreo.test/**",async route=>{
+  const body=route.request().postDataJSON();intakes.push(body);
+  await route.fulfill({json:{id:"tx-portfolio",title:body.title,status:"active"}});
+ });
+ await page.route("https://api.mreo.test/**",async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,defaultDays:1}});
+  if(path==="/register"){
+   const body=request.postDataJSON();
+   return route.fulfill({status:201,json:{id:"exchange-buyer",token:"exchange-buyer.secret",role:"buyer",name:body.details.name,email:body.details.email,creditCents:0,submission:{...body.submission,draftId:"draft-portfolio-12345678"}}});
+  }
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.goto("/buyer.html?auction=demo-portfolio&address=Illustrative+REO+portfolio+%C2%B7+150+properties&price=4804450&kind=portfolio&demo=1");
+ await page.locator("#buyer-form").evaluate(form=>{
+  for(const field of form.querySelectorAll("[required]")){
+   if(field.type==="checkbox"||field.type==="radio")field.checked=true;
+   else if(field.tagName==="SELECT")field.value=[...field.options].find(option=>option.value)?.value||"";
+   else if(!field.value&&field.type==="email")field.value="buyer@example.com";
+   else if(!field.value&&field.type==="number")field.value="4804450";
+   else if(!field.value)field.value="Portfolio Buyer";
+   field.dispatchEvent(new Event("input",{bubbles:true}));field.dispatchEvent(new Event("change",{bubbles:true}));
+  }
+  form.requestSubmit();
+ });
+ await expect(page).toHaveURL(/payment\.html\?role=buyer&demo=1&transaction=tx-portfolio$/);
+ expect(intakes[0]).toMatchObject({intake:true,role:"buyer",kind:"portfolio",auctionId:"demo-portfolio",title:"Illustrative REO portfolio · 150 properties",demo:true});
+});

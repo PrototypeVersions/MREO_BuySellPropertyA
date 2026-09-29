@@ -120,7 +120,7 @@ async function submitSeller(){
 async function submitBuyer(){
  await readyPromise;
  const form=$("buyer-form");if(!form.reportValidity())return;
- const account=await S.register("buyer",{name:field("buyer-name"),email:field("buyer-email")},{title:field("buyer-offer-address"),auctionId:params.get("auction")||"",mediaKey:params.get("mediaKey")||"",image:params.get("image")||"",proposedOffer:field("buyer-offer-amount"),details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))});
+ const account=await S.register("buyer",{name:field("buyer-name"),email:field("buyer-email")},{title:field("buyer-offer-address"),kind:params.get("kind")==="portfolio"?"portfolio":"property",auctionId:params.get("auction")||"",mediaKey:params.get("mediaKey")||"",image:params.get("image")||"",proposedOffer:field("buyer-offer-amount"),details:Object.fromEntries([...new FormData(form)].filter(([,v])=>typeof v==="string"))});
  const transaction=await createIntakeWorkspace(account,"buyer"),query=preserveDemo(new URLSearchParams({role:"buyer"}));if(transaction?.id)query.set("transaction",transaction.id);
  location.href="payment.html?"+query.toString();
 }
@@ -209,7 +209,7 @@ async function portfolio(){
  $("portfolio-count").textContent=String(rows.length);$("portfolio-value").textContent=cash(total.value);$("portfolio-price").textContent=cash(auction&&!auction.example?auction.reserve:total.price);$("portfolio-fee").textContent=cash(portfolioFee);$("portfolio-fee-note").textContent=cash(C.FEE)+" × "+rows.length+" properties";
  if(auction&&!auction.example){$("portfolio-price-label").textContent="Required portfolio bid";$("portfolio-pricing-note").textContent="Seller minimum plus the "+cash(portfolioFee)+" MREO fee ("+cash(C.FEE)+" per property)";}
  const title=auction?.title||"Illustrative REO portfolio · 150 properties";
- const interestQuery=new URLSearchParams({auction:listingId,address:title,price:String(Math.round(auction?.reserve||total.price))});
+ const interestQuery=new URLSearchParams({auction:listingId,address:title,price:String(Math.round(auction?.reserve||total.price)),kind:"portfolio"});
  const auctionQuery=new URLSearchParams({id:listingId});
  if(String(listingId).startsWith("demo-")||params.get("demo")==="1"){interestQuery.set("demo","1");auctionQuery.set("demo","1");}
  $("portfolio-interest").href="buyer.html?"+interestQuery.toString();

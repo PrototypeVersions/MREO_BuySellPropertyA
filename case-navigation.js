@@ -1,6 +1,20 @@
 (() => {
   const esc=value=>String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
   const auctionId=transaction=>transaction.property?.relatedAuctionId || (transaction.source_auction_id?.startsWith("intake-")?null:transaction.source_auction_id);
+  const normalize=value=>String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  async function recoverAuctionId(transaction){
+    const explicit=auctionId(transaction);
+    if(explicit)return explicit;
+    const service=globalThis.MreoService;
+    if(!service?.list)return null;
+    try{
+      await service.init?.();
+      const auctions=await service.list();
+      const title=normalize(transaction.title);
+      const matches=auctions.filter(item=>normalize(item.title)===title);
+      return matches.length===1?matches[0].id:null;
+    }catch{return null;}
+  }
   function auctionUrl(transaction) {
     const source=auctionId(transaction);
     const query=new URLSearchParams({transaction:transaction.id});
@@ -33,6 +47,15 @@
   (async()=>{
     try{
       const transaction=await MreoIdentity.request("/api/v1/transactions/"+encodeURIComponent(id));
+      const recovered=await recoverAuctionId(transaction);
+      if(recovered){
+        const destination=new URLSearchParams({transaction:id,id:recovered});
+        const role=transaction.viewerRole||transaction.viewer_role;
+        if(role==="buyer"||role==="seller")destination.set("view",role);
+        if(recovered.startsWith("demo-")||transaction.property?.demo===true||query.get("demo")==="1")destination.set("demo","1");
+        location.replace("auction.html?"+destination.toString());
+        return;
+      }
       root.innerHTML='<header class="transaction-head-compact"><p class="section-label">Your property workspace</p><h2>'+esc(transaction.title)+'</h2></header>'+links(transaction,"auction","auction")+(query.get("pending")==="1"?'<div class="case-panel"><h2>No active auction for this property</h2><p>Your interest is saved. You can ask MREO a question in Messages or review the next steps in Coordination. No bid has been placed.</p><a class="primary-button button-blue" href="coordination.html?transaction='+encodeURIComponent(id)+'&section=messages">Open Messages →</a></div>':"");
       if(query.get("pending")==="1"){
         document.querySelector(".auction-toolbar").hidden=true;
