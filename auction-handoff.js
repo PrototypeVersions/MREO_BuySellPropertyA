@@ -24,7 +24,31 @@
       if (!await MreoIdentity.currentUser()) return {url:"#", requiresSignIn:true};
       const {handoffToken} = await S.handoff(auction.id, view);
       const transaction = await MreoIdentity.request("/api/v1/transactions", {method:"POST", body:JSON.stringify({handoffToken})});
-      return {url:`coordination.html?transaction=${encodeURIComponent(transaction.id)}`, requiresSignIn:false};
+      const query = new URLSearchParams();
+      query.set("type", auction.kind === "portfolio" ? "portfolio" : "property");
+      query.set("auction", auction.id);
+      query.set(auction.kind === "portfolio" ? "title" : "address", auction.title);
+      if (amount) query.set("price", String(amount));
+      if (auction.kind === "portfolio") query.set("count", String(auction.portfolioCount || auction.portfolio?.length || 0));
+      const submission = account?.submission || {};
+      const mediaKey = auction.mediaKey || submission.mediaKey || (view === "seller" ? submission.draftId : "");
+      const image = submission.image || auction.image || "";
+      if (mediaKey) query.set("mediaKey", mediaKey);
+      if (/^(https?:\/\/|assets\/)/i.test(image)) query.set("image", image);
+      query.set("role", view);
+      query.set("entry", "auction");
+      query.set("workspaceTransaction", transaction.id);
+      query.set("stage", auction.saleCompleted ? "complete" : "won");
+      if (account?.name) { query.set("accountName", account.name); query.set("accountRole", view); }
+      if (account?.email) query.set("accountEmail", account.email);
+      const details = submission.details || {};
+      const phone = details[view === "seller" ? "sellerPhone" : "buyerPhone"];
+      const purchaseMethod = details.buyerPurchaseMethod || "";
+      const purchaseTimeline = details[view === "seller" ? "saleTimeline" : "buyerTimeline"] || "";
+      if (phone) query.set("accountPhone", phone);
+      if (purchaseMethod) query.set("purchaseMethod", purchaseMethod);
+      if (purchaseTimeline) query.set("purchaseTimeline", purchaseTimeline);
+      return {url:`coordination.html?${query.toString()}`, requiresSignIn:false};
     }
     const query = new URLSearchParams();
     query.set("type", auction.kind === "portfolio" ? "portfolio" : "property");

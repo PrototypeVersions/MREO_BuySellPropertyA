@@ -135,3 +135,54 @@ test("Fort Worth auction carries the winning buyer profile and property image in
  await expect(page.locator('input[name="purchaseMethodSource"]')).toHaveValue("Cash");
  await expect(page.locator('select[name="funding"]')).toHaveValue("Cash purchase");
 });
+
+
+test("connected seller closing opens Coordination first with an MREO chat button",async({page})=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("**/mreo-identity.js*",route=>route.fulfill({contentType:"application/javascript",body:`
+  globalThis.MreoIdentity={
+   connected:()=>true,init:async()=>({}),currentUser:async()=>({id:"seller-user"}),openSignIn:async()=>{},
+   request:async(path,options={})=>{
+    if(path==="/api/v1/transactions"&&options.method==="POST")return {id:"tx-connected-seller"};
+    throw Error("Unexpected identity request: "+path);
+   }
+  };
+ `}));
+ await page.route("https://api.mreo.test/**",route=>{
+  const url=new URL(route.request().url()),path=url.pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,auctionTestControls:true,defaultDays:1}});
+  if(path==="/auctions")return route.fulfill({json:{auctions:[{id:"auction-connected-seller",title:"5555 Richard Ave, Dallas, TX 75206",kind:"property",reserve:501000,status:"closed",endsAt:Date.now()-1000,example:false}]}});
+  if(path==="/auctions/auction-connected-seller/handoff"&&route.request().method()==="POST")return route.fulfill({json:{handoffToken:"signed-connected-seller"}});
+  if(path==="/auctions/auction-connected-seller")return route.fulfill({json:{
+   auction:{id:"auction-connected-seller",title:"5555 Richard Ave, Dallas, TX 75206",kind:"property",minimum:500000,reserve:501000,fee:1000,status:"closed",startsAt:Date.now()-86400000,endsAt:Date.now()-1000,closedAt:Date.now()-900,bidCount:3,winnerId:"test-buyer-c",viewerOutcome:"seller-result",saleCompleted:false,bids:[
+    {id:"a",buyerId:"test-buyer-a",label:"Test Buyer A",amount:450900,at:Date.now()-3000},
+    {id:"b",buyerId:"test-buyer-b",label:"Test Buyer B",amount:491000,at:Date.now()-2000},
+    {id:"c",buyerId:"test-buyer-c",label:"Test Buyer C",amount:521100,at:Date.now()-1000}
+   ]},
+   account:{id:"exchange-seller",role:"seller",name:"Richard Seller",email:"seller@example.com",submission:{title:"5555 Richard Ave, Dallas, TX 75206",draftId:"draft-richard",details:{sellerPhone:"214-555-0100",saleTimeline:"Within 30 days"}}},
+   isSeller:true,canTest:true,serverNow:Date.now()
+  }});
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.addInitScript(()=>{
+  sessionStorage.setItem("mreo:v3:/:connected:https://api.mreo.test:seller",JSON.stringify({token:"exchange-seller.secret",id:"exchange-seller",role:"seller"}));
+  sessionStorage.setItem("mreo:v3:/:role","seller");
+ });
+ await page.goto("/auction.html?id=auction-connected-seller&view=seller");
+ const workspace=page.getByRole("link",{name:"Continue seller closing →"});
+ await expect(workspace).toBeVisible();
+ const href=new URL(await workspace.getAttribute("href"),page.url());
+ expect(href.pathname).toMatch(/coordination\.html$/);
+ expect(href.searchParams.get("auction")).toBe("auction-connected-seller");
+ expect(href.searchParams.get("role")).toBe("seller");
+ expect(href.searchParams.get("entry")).toBe("auction");
+ expect(href.searchParams.get("stage")).toBe("won");
+ expect(href.searchParams.get("workspaceTransaction")).toBe("tx-connected-seller");
+ expect(href.searchParams.has("transaction")).toBe(false);
+ await workspace.click();
+ await expect(page.locator("#auction-entry-toolbar")).toBeVisible();
+ await expect(page.getByRole("link",{name:"Chat with an MREO agent →"})).toHaveAttribute("href","coordination.html?transaction=tx-connected-seller&section=messages&role=seller");
+ await expect(page.locator("#coord-record-title")).toHaveText("5555 Richard Ave, Dallas, TX 75206");
+ await expect(page.locator("#acquisition-heading")).toContainText("Seller acceptance and closing");
+ await expect(page.locator('[data-service="title"]')).toBeVisible();
+});
