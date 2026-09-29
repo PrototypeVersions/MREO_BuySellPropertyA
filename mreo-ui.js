@@ -251,8 +251,11 @@ function marketplace(){
 async function auctionPage(){
  if(params.get("pending")==="1"&&params.has("transaction"))return;
  if(!$("auction-select"))return;
- let id=params.get("id")||"",view=params.get("view")==="seller"?"seller":"buyer",actor="",last=null,clockOffset=0,refreshing=false;
- $("test-controls").hidden=!S.demo;
+ const requestedView=params.get("view");
+ let id=params.get("id")||"",view=requestedView==="seller"?"seller":requestedView==="buyer"?"buyer":(params.has("transaction")&&S.currentRole?.()==="seller"?"seller":"buyer"),actor="",last=null,clockOffset=0,refreshing=false;
+ const testControls=$("test-controls"),connectedTestControls=!S.demo&&!!S.testControlsAvailable?.();
+ testControls.hidden=!S.demo;
+ if(connectedTestControls){const copy=testControls.querySelector("p");if(copy)copy.textContent="Use the named test buyers to simulate bids on this connected test auction, then advance to a result or restart it. These controls are automatically unavailable in live-payment mode.";$("reset-demo").hidden=true;}
  const select=$("auction-select");
  let requestedTitle=params.get("address")||"",requireSelection=params.get("select")==="1"||params.has("id")||!!requestedTitle;
  async function loadList(){
@@ -297,17 +300,17 @@ async function auctionPage(){
  const selectionChanged=()=>requestedId!==id||requestedView!==view||requestedActor!==actor;
  try{
  const loadedAuction=await S.auction(requestedId,requestedView,requestedActor);if(selectionChanged())return;
- last=loadedAuction;const {auction:a,account,isSeller}=last;
+ last=loadedAuction;const {auction:a,account,isSeller}=last;const canTest=S.demo||!!last.canTest;testControls.hidden=!canTest;
  const selectedOption=[...select.options].find(option=>option.value===a.id);if(selectedOption)selectedOption.textContent=a.title;select.value=a.id;clockOffset=(last.serverNow||Date.now())-Date.now();const top=C.highest(a),summary=C.sellerSummary(a);
  $("auction-content").hidden=false;$("auction-title").textContent=a.title;$("auction-kind").textContent=a.kind==="portfolio"?"Portfolio · "+(a.portfolioCount??a.portfolio?.length??0)+" properties":"Property";$("auction-status").textContent=a.status==="active"?"Active":"Closed";$("auction-status").classList.toggle("is-closed",a.status==="closed");
  $("auction-count").textContent=String(a.bidCount??a.bids.length);$("auction-duration").textContent=a.days+"-day "+(a.days===1?"test timing":"standard timing");$("auction-deadline").textContent="Closes "+new Date(a.endsAt).toLocaleString();
  const output=resultHTML(a,account,isSeller),result=$("auction-result");result.hidden=!output;if(result.innerHTML!==output)result.innerHTML=output;
- $("buyer-identity").textContent=account?(account.name+" · "+(S.demo?"test ":"")+"participation credit $"+((account.creditCents||0)/100).toFixed(2)):"Complete buyer interest and the $1 participation step to bid.";
+ $("buyer-identity").textContent=account?(account.name+" · "+((S.demo||account.test)?"test ":"")+"participation credit $"+((account.creditCents||0)/100).toFixed(2)):"Complete buyer interest and the $1 participation step to bid.";
  const eligible=account?.role==="buyer"&&account.creditCents>=100;
  $("bid-form").hidden=!eligible||a.status!=="active";$("bid-register").hidden=!!eligible||a.status!=="active";$("bid-register").href="buyer.html?"+preserveDemo(new URLSearchParams({auction:a.id,address:a.title})).toString();
  $("buyer-status").textContent=a.status==="active"?(a.viewerOutcome==="submitted"?"Your bid has been received. Your result will be shown when the auction ends.":"Your submitted interest is not automatically placed as a bid."):"";
- $("seller-private").hidden=view!=="seller"||!isSeller;$("seller-access-message").textContent=isSeller?"A winning bid must cover your minimum plus the MREO fee. An auction result does not itself charge the success fee.":"Only the listing seller can view all bids and the seller’s proceeds. "+(S.demo?"Choose Test Seller above to preview this listing’s seller view.":"Use the same browser tab used to submit this listing.");
- if(view==="seller"&&isSeller){$("seller-net-min").textContent=cash(a.minimum);$("seller-reserve").textContent=cash(a.reserve);$("seller-proceeds").textContent=top?cash(summary.proceeds):"—";$("seller-additional").textContent=cash(summary.additional);$("seller-fee-due").textContent=cash(summary.feeDue);$("complete-sale").hidden=!S.demo||!a.winnerId||a.saleCompleted;}
+ $("seller-private").hidden=view!=="seller"||!isSeller;$("seller-access-message").textContent=isSeller?"A winning bid must cover your minimum plus the MREO fee. An auction result does not itself charge the success fee.":"Only the listing seller can view all bids and the seller’s proceeds. "+(canTest?"Choose Test Seller above to preview this listing’s seller view.":"Use the same browser tab used to submit this listing.");
+ if(view==="seller"&&isSeller){$("seller-net-min").textContent=cash(a.minimum);$("seller-reserve").textContent=cash(a.reserve);$("seller-proceeds").textContent=top?cash(summary.proceeds):"—";$("seller-additional").textContent=cash(summary.additional);$("seller-fee-due").textContent=cash(summary.feeDue);$("complete-sale").hidden=!canTest||!a.winnerId||a.saleCompleted;}
  else{for(const field of ["seller-net-min","seller-reserve","seller-proceeds","seller-additional","seller-fee-due"])$(field).textContent="";$("complete-sale").hidden=true;}
  const bids=view==="seller"&&isSeller?a.bids:a.bids.filter(b=>b.buyerId===account?.id);
  $("bid-history-title").textContent=view==="seller"&&isSeller?"All associated bids":"Your bid history";$("bid-history").innerHTML=[...bids].sort((x,y)=>y.amount-x.amount).map(b=>"<tr><td>"+esc(b.label)+"</td><td>"+cash(b.amount)+"</td><td>"+esc(new Date(b.at).toLocaleTimeString())+"</td></tr>").join("")||'<tr><td colspan="3">'+(view==="seller"&&!isSeller?"Seller access required.":"No bids to display.")+"</td></tr>";

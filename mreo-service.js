@@ -8,6 +8,7 @@ let connectionStatus=null;
 const pageQuery=new URLSearchParams(location.search);
 const publicAuctionLanding=/\/auction\.html$/.test(location.pathname)&&!location.search;
 const demo=config.mode!=="connected"||pageQuery.get("demo")==="1"||publicAuctionLanding;
+const testControlsAvailable=()=>demo||!!connectionStatus?.auctionTestControls;
 const root=location.pathname.slice(0,location.pathname.lastIndexOf("/")+1);
 const key="mreo:v3:"+root;
 const visibleAuction=a=>!!a&&!a.hidden&&a.id!=="video-property";
@@ -176,7 +177,12 @@ async function list(){
  return auctions.map(({id,title,kind,reserve,portfolio,portfolioCount,status,endsAt,example,mediaKey,details})=>({id,title,kind,reserve,portfolioCount:portfolioCount??portfolio?.length??0,status,endsAt,example,mediaKey:mediaKey||"",details:details||{}}));
 }
 async function auction(id,view="buyer",actor){
- if(!demo)return api("/auctions/"+encodeURIComponent(id)+"?view="+encodeURIComponent(view),{},view);
+ if(!demo){
+  const query=new URLSearchParams({view});
+  const simulated=!!actor&&!!connectionStatus?.auctionTestControls;
+  if(simulated)query.set("actor",actor);
+  return api("/auctions/"+encodeURIComponent(id)+"?"+query.toString(),{},simulated?"seller":view);
+ }
  const s=read(),a=s.auctions[id];if(!visibleAuction(a))throw Error("This auction was not found. Choose another listing.");
  C.seedDemo(a);write(s);
  const account=demoAccount(s,a,view,actor);
@@ -197,13 +203,28 @@ async function auctionSummary(id,view="buyer",{allowDemo=demo}={}){
  throw Error("This auction was not found. Choose another listing.");
 }
 async function bid(id,amount,actor){
- if(!demo)return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount})},"buyer");
+ if(!demo){
+  if(actor&&connectionStatus?.auctionTestControls){
+   if(!Object.prototype.hasOwnProperty.call({"test-buyer-a":1,"test-buyer-b":1,"test-buyer-c":1},actor))throw Error("Choose a test buyer before placing a simulated bid.");
+   return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount,testActor:actor})},"seller");
+  }
+  return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount})},"buyer");
+ }
  const s=read(),a=s.auctions[id];if(!visibleAuction(a))throw Error("Auction not found.");const account=demoAccount(s,a,"buyer",actor);C.seedDemo(a);
  C.placeBid(a,{amount,buyerId:account?.id,label:account?.name,paid:account?.creditCents>=100});if(account?.id)sessionStorage.setItem(summaryBuyerKey(id),account.id);write(s);return {ok:true};
 }
-async function finish(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");C.seedDemo(a,a.endsAt-1);const now=Date.now();for(const b of a.bids)b.at=Math.min(b.at,now);a.endsAt=now;C.closeAuction(a);write(s);}
-async function restart(id){if(!demo)throw Error("Test controls are unavailable.");const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);sessionStorage.removeItem(summaryBuyerKey(id));write(s);}
-async function completeSale(id){if(!demo)throw Error("Only test closing can be simulated here.");const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);}
+async function finish(id){
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/finish",{method:"POST",body:"{}"},"seller");}
+ const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");C.seedDemo(a,a.endsAt-1);const now=Date.now();for(const b of a.bids)b.at=Math.min(b.at,now);a.endsAt=now;C.closeAuction(a);write(s);
+}
+async function restart(id){
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/restart",{method:"POST",body:"{}"},"seller");}
+ const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);sessionStorage.removeItem(summaryBuyerKey(id));write(s);
+}
+async function completeSale(id){
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Only test closing can be simulated here.");return api("/auctions/"+encodeURIComponent(id)+"/test/complete-sale",{method:"POST",body:"{}"},"seller");}
+ const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);
+}
 async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}
-globalThis.MreoService={demo,key,init,status:()=>connectionStatus,register,me,checkout,confirm,activate,list,auction,auctionSummary,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
+globalThis.MreoService={demo,key,init,status:()=>connectionStatus,testControlsAvailable,register,me,checkout,confirm,activate,list,auction,auctionSummary,bid,finish,restart,completeSale,handoff,session,currentRole,setRole,clear,saveMedia,getMedia};
 })();

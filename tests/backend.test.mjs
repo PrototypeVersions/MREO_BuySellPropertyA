@@ -49,6 +49,25 @@ test("missing Stripe grants an explicit test credit while live payments are disa
  assert.equal(ctx.data.get("ledger:test-bypass:"+seller.id).amountCents,0);
  r=await ex.fetch(request("/activate","POST",{},seller.token));assert.equal(r.status,201);
 });
+test("seller can run connected auction test controls outside live-payment mode",async()=>{
+ const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),seller=await register(ex,"seller");
+ const sellerRecord=ctx.data.get("account:"+seller.id);sellerRecord.creditCents=100;ctx.data.set("account:"+seller.id,sellerRecord);
+ const config=await (await ex.fetch(request("/config"))).json();assert.equal(config.auctionTestControls,true);
+ const activated=await (await ex.fetch(request("/activate","POST",{},seller.token))).json(),route="/auctions/"+activated.auctionId;
+ let state=await (await ex.fetch(request(route+"?view=seller","GET",null,seller.token))).json();assert.equal(state.canTest,true);assert.equal(state.isSeller,true);
+ state=await (await ex.fetch(request(route+"?view=buyer&actor=test-buyer-a","GET",null,seller.token))).json();assert.equal(state.account.id,"test-buyer-a");assert.equal(state.account.role,"buyer");assert.equal(state.canTest,true);
+ let r=await ex.fetch(request(route+"/bids","POST",{amount:300000,testActor:"test-buyer-a"},seller.token));assert.equal(r.status,201);
+ state=await (await ex.fetch(request(route+"?view=buyer&actor=test-buyer-a","GET",null,seller.token))).json();assert.deepEqual(state.auction.bids.map(b=>b.amount),[300000]);
+ r=await ex.fetch(request(route+"/test/finish","POST",{},seller.token));assert.equal(r.status,200);
+ state=await (await ex.fetch(request(route+"?view=seller","GET",null,seller.token))).json();assert.equal(state.auction.status,"closed");assert.equal(state.auction.winnerId,"test-buyer-a");
+ r=await ex.fetch(request(route+"/test/complete-sale","POST",{},seller.token));assert.equal(r.status,200);
+ state=await (await ex.fetch(request(route+"?view=seller","GET",null,seller.token))).json();assert.equal(state.auction.saleCompleted,true);
+ r=await ex.fetch(request(route+"/test/restart","POST",{},seller.token));assert.equal(r.status,200);
+ state=await (await ex.fetch(request(route+"?view=seller","GET",null,seller.token))).json();assert.equal(state.auction.status,"active");assert.equal(state.auction.bids.length,3);
+ const liveEnv={...testEnv,STRIPE_SECRET_KEY:"sk_live_example",ALLOW_LIVE_PAYMENTS:"true"},liveEx=new Exchange(ctx,liveEnv);
+ assert.equal((await (await liveEx.fetch(request("/config"))).json()).auctionTestControls,false);
+ assert.equal((await liveEx.fetch(request(route+"/test/finish","POST",{},seller.token))).status,403);
+});
 test("paid participants receive a signed intake workspace before an auction closes",async()=>{
  const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv),buyer=await register(ex,"buyer",{mediaKey:"listing-media",image:"assets/property-placeholder.svg"});
  assert.equal(buyer.email,"buyer@example.com");assert.equal(buyer.submission.title,"Test listing");assert.match(buyer.submission.draftId,/^[0-9a-f-]+$/i);
