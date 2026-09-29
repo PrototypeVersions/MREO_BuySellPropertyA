@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createScenario,act,conversation,visibleDocuments,saveScenario,loadScenario,namespace} from "../demo-store.js";
+import {SERVICES,createScenario,act,conversation,visibleDocuments,saveScenario,loadScenario,namespace} from "../demo-store.js";
 
 const memory=()=>{const entries=new Map();return {getItem:key=>entries.get(key)??null,setItem:(key,value)=>entries.set(key,value),entries};};
 
@@ -20,7 +20,7 @@ test("auction, messaging and coordination actions do not advance one another",()
  const state=createScenario();
  assert.throws(()=>act(state,"bid",{amount:429000}),/participation/);
  act(state,"message",{body:"Is a report available?"});
- act(state,"requestService",{service:"inspection"});
+ act(state,"requestService",{service:"contractors"});
  assert.equal(state.auction.status,"open");assert.equal(state.auction.bids.length,0);
  act(state,"participate");act(state,"bid",{amount:429000});
  assert.equal(state.serviceRequests[0].status,"proposed");
