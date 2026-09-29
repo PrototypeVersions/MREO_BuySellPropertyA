@@ -7,7 +7,8 @@
       this.root = root;
       this.transactionId = transactionId;
       this.viewerRole = viewerRole;
-      this.thread = viewerRole === "agent" ? (["buyer","seller","provider"].includes(preferredRole) ? preferredRole : "buyer") + "_agent" : null;
+      const participantThread = viewerRole === "provider" ? "provider_agent" : (viewerRole === "buyer" || viewerRole === "seller" ? viewerRole + "_agent" : null);
+      this.thread = viewerRole === "agent" ? (["buyer","seller","provider"].includes(preferredRole) ? preferredRole : "buyer") + "_agent" : participantThread;
       this.messages = [];
       this.documents = [];
       this.events = [];

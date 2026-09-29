@@ -113,3 +113,26 @@ test("connected portfolio marketplace keeps the illustrative portfolio on its wo
   await expect(page.locator("#portfolio-auction")).toBeVisible();
   await expect(page.locator("#portfolio-auction")).toHaveAttribute("href",/auction\.html\?id=demo-portfolio&demo=1/);
 });
+
+
+test("participant workspace sends to its private MREO thread without showing agent thread tabs",async({page})=>{
+ await page.goto("/coordination.html");
+ await page.evaluate(()=>{
+  window.__messageRequest=null;
+  globalThis.MreoIdentity={
+   request:async(path,options={})=>{
+    if(options.method==="POST"){window.__messageRequest={path,body:JSON.parse(options.body)};return {id:"msg-test"};}
+    return {messages:[]};
+   }
+  };
+  const root=document.createElement("div");
+  root.id="thread-regression-root";
+  document.body.append(root);
+  window.__threadRegression=new TransactionThread(root,"tx-thread-regression","seller");
+ });
+ await expect(page.locator("#thread-regression-root .thread-tabs")).toBeHidden();
+ await page.locator("#thread-regression-root textarea").fill("Please review the closing document.");
+ await page.locator("#thread-regression-root button[type=submit]").click();
+ await expect.poll(()=>page.evaluate(()=>window.__messageRequest?.body?.thread)).toBe("seller_agent");
+ await expect.poll(()=>page.evaluate(()=>window.__messageRequest?.body?.body)).toBe("Please review the closing document.");
+});

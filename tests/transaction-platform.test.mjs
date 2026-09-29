@@ -54,6 +54,14 @@ test("staff access preserves the user's buyer and seller roles in their own work
   assert.deepEqual(new Set(listed.map(item=>item.viewer_role)),new Set(["buyer","seller"]));
   assert.equal((await data(await apiFetch(request(`/api/v1/transactions/${seller.id}`,{user:"blake"}),e))).body.viewerRole,"seller");
   assert.equal((await data(await apiFetch(request(`/api/v1/transactions/${buyer.id}`,{user:"blake"}),e))).body.viewerRole,"buyer");
+  const sellerMessage=await data(await apiFetch(request(`/api/v1/transactions/${seller.id}/messages`,{method:"POST",user:"blake",body:{body:"Seller workspace message"}}),e));
+  assert.equal(sellerMessage.status,201);
+  const sellerThread=await data(await apiFetch(request(`/api/v1/transactions/${seller.id}/messages`,{user:"blake"}),e));
+  assert.equal(sellerThread.status,200);assert.equal(sellerThread.body.thread.kind,"seller_agent");assert.equal(sellerThread.body.messages.at(-1).body,"Seller workspace message");
+  const buyerMessage=await data(await apiFetch(request(`/api/v1/transactions/${buyer.id}/messages`,{method:"POST",user:"blake",body:{body:"Buyer workspace message"}}),e));
+  assert.equal(buyerMessage.status,201);
+  const buyerThread=await data(await apiFetch(request(`/api/v1/transactions/${buyer.id}/messages`,{user:"blake"}),e));
+  assert.equal(buyerThread.status,200);assert.equal(buyerThread.body.thread.kind,"buyer_agent");assert.equal(buyerThread.body.messages.at(-1).body,"Buyer workspace message");
 });
 
 test("Reset All is staff-only and preserves sign-in identities while clearing platform data", async () => {

@@ -6,10 +6,15 @@ import {participation} from "./transactions.js";
 const threadKind = role => role === "buyer" ? "buyer_agent" : role === "seller" ? "seller_agent" : role === "provider" ? "provider_agent" : null;
 
 async function selectThread(env, transactionId, access, requestedKind = null) {
+  const allowedKinds=["buyer_agent","seller_agent","provider_agent"];
   let kind = threadKind(access.role);
   if (access.staff) {
-    if (!["buyer_agent","seller_agent","provider_agent"].includes(requestedKind)) throw new HttpError("Choose the buyer, seller, or provider thread.", 400, "thread_required");
-    kind = requestedKind;
+    if (requestedKind) {
+      if (!allowedKinds.includes(requestedKind)) throw new HttpError("Choose the buyer, seller, or provider thread.", 400, "thread_required");
+      kind = requestedKind;
+    } else if (access.role === "agent") {
+      throw new HttpError("Choose the buyer, seller, or provider thread.", 400, "thread_required");
+    }
   }
   const thread = await one(env, "SELECT * FROM threads WHERE transaction_id = ? AND kind = ?", transactionId, kind);
   if (!thread) throw new HttpError("Thread not found.", 404, "not_found");
