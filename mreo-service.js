@@ -191,7 +191,7 @@ async function auction(id,view="buyer",actor){
   const query=new URLSearchParams({view});
   const simulated=!!actor&&!!connectionStatus?.auctionTestControls;
   if(simulated)query.set("actor",actor);
-  return api("/auctions/"+encodeURIComponent(id)+"?"+query.toString(),{},simulated?"seller":view);
+  return api("/auctions/"+encodeURIComponent(id)+"?"+query.toString(),{},simulated?currentRole():view);
  }
  const s=read(),a=s.auctions[id];if(!visibleAuction(a))throw Error("This auction was not found. Choose another listing.");
  C.seedDemo(a);write(s);
@@ -216,7 +216,7 @@ async function bid(id,amount,actor){
  if(!demo){
   if(actor&&connectionStatus?.auctionTestControls){
    if(!Object.prototype.hasOwnProperty.call({"test-buyer-a":1,"test-buyer-b":1,"test-buyer-c":1},actor))throw Error("Choose a test buyer before placing a simulated bid.");
-   return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount,testActor:actor})},"seller");
+   return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount,testActor:actor})},currentRole());
   }
   return api("/auctions/"+encodeURIComponent(id)+"/bids",{method:"POST",body:JSON.stringify({amount})},"buyer");
  }
@@ -224,15 +224,15 @@ async function bid(id,amount,actor){
  C.placeBid(a,{amount,buyerId:account?.id,label:account?.name,paid:account?.creditCents>=100});if(account?.id)sessionStorage.setItem(summaryBuyerKey(id),account.id);write(s);return {ok:true};
 }
 async function finish(id){
- if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/finish",{method:"POST",body:"{}"},"seller");}
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/finish",{method:"POST",body:"{}"},currentRole());}
  const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");C.seedDemo(a,a.endsAt-1);const now=Date.now();for(const b of a.bids)b.at=Math.min(b.at,now);a.endsAt=now;C.closeAuction(a);write(s);
 }
 async function restart(id){
- if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/restart",{method:"POST",body:"{}"},"seller");}
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Test controls are unavailable.");return api("/auctions/"+encodeURIComponent(id)+"/test/restart",{method:"POST",body:"{}"},currentRole());}
  const s=read(),a=s.auctions[id];if(!a)throw Error("Auction not found.");const fresh=C.createAuction({...a,now:Date.now()-31000});fresh.example=a.example;s.auctions[id]=C.seedDemo(fresh);sessionStorage.removeItem(summaryBuyerKey(id));write(s);
 }
 async function completeSale(id){
- if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Only test closing can be simulated here.");return api("/auctions/"+encodeURIComponent(id)+"/test/complete-sale",{method:"POST",body:"{}"},"seller");}
+ if(!demo){if(!connectionStatus?.auctionTestControls)throw Error("Only test closing can be simulated here.");return api("/auctions/"+encodeURIComponent(id)+"/test/complete-sale",{method:"POST",body:"{}"},currentRole());}
  const s=read(),a=s.auctions[id];C.closeAuction(a);if(!a.winnerId)throw Error("There is no qualifying winning bid.");a.saleCompleted=true;write(s);
 }
 async function handoff(id,role=currentRole()){if(demo)return null;return api("/auctions/"+encodeURIComponent(id)+"/handoff",{method:"POST",body:"{}"},role);}

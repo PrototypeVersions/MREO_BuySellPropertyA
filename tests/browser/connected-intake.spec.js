@@ -264,3 +264,27 @@ test("connected buyer selecting the illustrative portfolio lands on its working 
  await expect(page.locator("#auction-content")).toBeVisible();
  await expect(page.getByRole("heading",{name:"No active auction for this property"})).toHaveCount(0);
 });
+
+
+test("connected buyer on a seller-created test auction sees Test the auction controls",async({page})=>{
+ await page.route("**/mreo-config.js",route=>route.fulfill({contentType:"application/javascript",body:'window.MREO_CONFIG=Object.freeze({mode:"connected",apiBase:"https://api.mreo.test"});'}));
+ await page.route("https://api.mreo.test/**",route=>{
+  const url=new URL(route.request().url()),path=url.pathname;
+  if(path==="/config")return route.fulfill({json:{connected:true,stripeConfigured:false,participationBypass:true,testPayments:true,auctionTestControls:true,defaultDays:1}});
+  if(path==="/auctions")return route.fulfill({json:{auctions:[{id:"auction-richard",title:"5555 Richard Ave, Dallas, TX 75206",kind:"property",reserve:501000,status:"active",endsAt:Date.now()+86400000,example:false}]}});
+  if(path==="/auctions/auction-richard")return route.fulfill({json:{
+   auction:{id:"auction-richard",title:"5555 Richard Ave, Dallas, TX 75206",kind:"property",minimum:500000,reserve:501000,fee:1000,status:"active",startsAt:Date.now()-1000,endsAt:Date.now()+86400000,days:1,bids:[{id:"mine",buyerId:"buyer-richard",label:"Austin Myers",amount:10000000,at:Date.now()-500}],bidCount:1,viewerOutcome:"submitted"},
+   account:{id:"buyer-richard",role:"buyer",name:"Austin Myers",email:"buyer@example.com",creditCents:100,submission:{title:"5555 Richard Ave, Dallas, TX 75206",auctionId:"auction-richard"}},
+   isSeller:false,canTest:true,serverNow:Date.now()
+  }});
+  return route.fulfill({status:404,json:{error:"Not found"}});
+ });
+ await page.addInitScript(()=>{
+  sessionStorage.setItem("mreo:v3:/:connected:https://api.mreo.test:buyer",JSON.stringify({token:"buyer-richard.secret",id:"buyer-richard",role:"buyer"}));
+  sessionStorage.setItem("mreo:v3:/:role","buyer");
+ });
+ await page.goto("/auction.html?id=auction-richard&view=buyer");
+ await expect(page.locator("#test-controls")).toBeVisible();
+ await expect(page.locator("#buyer-identity")).toContainText("Austin Myers");
+ await expect(page.locator("#bid-history")).toContainText("Austin Myers");
+});

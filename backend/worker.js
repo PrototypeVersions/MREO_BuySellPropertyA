@@ -15,6 +15,7 @@ const sha=async text=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",ne
 const constantEqual=(a,b)=>{if(a.length!==b.length)return false;let result=0;for(let i=0;i<a.length;i++)result|=a.charCodeAt(i)^b.charCodeAt(i);return result===0;};
 const TEST_AUCTION_BUYERS=Object.freeze({"test-buyer-a":"Test Buyer A","test-buyer-b":"Test Buyer B","test-buyer-c":"Test Buyer C"});
 const testAuctionControls=env=>!String(env.STRIPE_SECRET_KEY||"").startsWith("sk_live_");
+const testAuctionParticipant=(account,auction)=>!!account&&!!auction&&(account.id===auction.sellerId||(account.role==="buyer"&&(account.submission?.auctionId===auction.id||account.submission?.title===auction.title)&&account.creditCents>=100));
 async function limitedText(request){const reader=request.body?.getReader();if(!reader)return "";let size=0;const chunks=[];for(;;){const r=await reader.read();if(r.done)break;size+=r.value.byteLength;if(size>1500000){await reader.cancel();throw new HttpError("Request is too large.",413);}chunks.push(r.value);}const out=new Uint8Array(size);let n=0;for(const c of chunks){out.set(c,n);n+=c.length;}return new TextDecoder().decode(out);}
 async function bodyJSON(request){if(!(request.headers.get("Content-Type")||"").includes("application/json"))throw new HttpError("Use application/json.",415);try{return JSON.parse(await limitedText(request));}catch(e){if(e instanceof HttpError)throw e;throw new HttpError("Invalid JSON.");}}
 function siteURL(env){let url;try{url=new URL(env.SITE_URL);}catch{throw new HttpError("SITE_URL is not configured.",503);}if(url.protocol!=="https:")throw new HttpError("SITE_URL must use HTTPS.",503);return url.href.replace(/\/$/,"");}
@@ -145,7 +146,7 @@ class Exchange{
   if(!testAuctionControls(this.env))throw new HttpError("Auction test controls are unavailable in live-payment mode.",403);
   const account=await this.account(request),auction=await this.enrichAuction(await this.ctx.storage.get("auction:"+testAction[1]));
   if(!auction)throw new HttpError("Auction not found.",404);
-  if(account.id!==auction.sellerId)throw new HttpError("Only the listing seller can use auction test controls.",403);
+  if(!testAuctionParticipant(account,auction))throw new HttpError("Only a test-auction participant can use auction test controls.",403);
   const action=testAction[2];
   if(action==="restart"){
    const fresh=C.createAuction({id:auction.id,title:auction.title,sellerId:auction.sellerId,minimum:auction.minimum,days:auction.days,kind:auction.kind,portfolioCount:auction.portfolioCount||auction.portfolio?.length||0,demo:true,now:Date.now()-31000});
@@ -195,28 +196,31 @@ class Exchange{
    if(testActor){
     if(!testAuctionControls(this.env))throw new HttpError("Auction test controls are unavailable in live-payment mode.",403);
     const controller=await this.account(request),label=TEST_AUCTION_BUYERS[testActor];
-    if(controller.id!==a.sellerId||!label)throw new HttpError("Only the listing seller can place simulated test bids.",403);
+    if(!testAuctionParticipant(controller,a)||!label)throw new HttpError("Only a test-auction participant can place simulated test bids.",403);
     if(a.bids.length>=10000)throw new HttpError("This auction has reached its bid limit.");
     C.placeBid(a,{buyerId:testActor,label,amount:data.amount,paid:true,id:crypto.randomUUID()});await this.ctx.storage.put("auction:"+a.id,a);return json({ok:true},201);
    }
    const account=await this.account(request);if(account.role!=="buyer"||account.creditCents<100)throw new HttpError("Verified buyer participation is required.",403);
    if(a.bids.length>=10000)throw new HttpError("This auction has reached its bid limit.");
-   C.placeBid(a,{buyerId:account.id,label:"Buyer "+account.id.slice(0,8),amount:data.amount,paid:true,id:crypto.randomUUID()});await this.ctx.storage.put("auction:"+a.id,a);return json({ok:true},201);
+   C.placeBid(a,{buyerId:account.id,label:account.name||("Buyer "+account.id.slice(0,8)),amount:data.amount,paid:true,id:crypto.randomUUID()});await this.ctx.storage.put("auction:"+a.id,a);return json({ok:true},201);
   }
   if(!match[2]&&method==="GET"){
-   const controller=await this.account(request,false),controllerIsSeller=controller?.id===a.sellerId,actor=String(url.searchParams.get("actor")||"");
+   const controller=await this.account(request,false),controllerCanTest=testAuctionParticipant(controller,a),actor=String(url.searchParams.get("actor")||"");
    let viewer=controller,accountPayload=controller?this.publicAccount(controller):null;
    if(actor){
-    if(!testAuctionControls(this.env)||!controllerIsSeller)throw new HttpError("Only the listing seller can use simulated auction participants.",403);
-    if(actor==="test-seller"){viewer=controller;accountPayload=this.publicAccount(controller);}
-    else{
+    if(!testAuctionControls(this.env)||!controllerCanTest)throw new HttpError("Only a test-auction participant can use simulated auction participants.",403);
+    if(actor==="test-seller"){
+     const seller=await this.ctx.storage.get("account:"+a.sellerId);
+     viewer=seller||{id:a.sellerId,role:"seller",name:"Test Seller",email:"",creditCents:100,test:true};
+     accountPayload=seller?this.publicAccount(seller):viewer;
+    }else{
      const label=TEST_AUCTION_BUYERS[actor];if(!label)throw new HttpError("Unknown test participant.",400);
      viewer={id:actor,role:"buyer",name:label,email:"",creditCents:100,test:true};accountPayload=viewer;
     }
    }
    const view=url.searchParams.get("view")==="seller"?"seller":"buyer",isSeller=viewer?.id===a.sellerId;
    if(view==="seller"&&!isSeller)throw new HttpError("Use the listing seller’s account to see all bids and proceeds.",403);
-   const now=Date.now();return json({auction:{...C.auctionForViewer(a,viewer?.id,view,now),portfolio:await this.ctx.storage.get("portfolio:"+a.id)||[]},account:accountPayload,isSeller,canTest:testAuctionControls(this.env)&&controllerIsSeller,serverNow:now});
+   const now=Date.now();return json({auction:{...C.auctionForViewer(a,viewer?.id,view,now),portfolio:await this.ctx.storage.get("portfolio:"+a.id)||[]},account:accountPayload,isSeller,canTest:testAuctionControls(this.env)&&controllerCanTest,serverNow:now});
   }
  }
  throw new HttpError("Route not found.",404);

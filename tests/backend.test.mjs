@@ -129,3 +129,26 @@ test("only the seller and winning buyer receive signed transaction handoffs",asy
  assert.equal((await ex.fetch(request(`/auctions/${auction.id}/handoff`,"POST",{},seller.token))).status,200);
  assert.equal((await ex.fetch(request(`/auctions/${auction.id}/handoff`,"POST",{},loser.token))).status,403);
 });
+
+
+test("participating connected buyer gets test controls and real bids use the buyer name",async()=>{
+ const ctx=context(),testEnv={...env,STRIPE_SECRET_KEY:"",STRIPE_WEBHOOK_SECRET:"",ALLOW_LIVE_PAYMENTS:"false"},ex=new Exchange(ctx,testEnv);
+ const seller=await register(ex,"seller");
+ const sellerRecord=ctx.data.get("account:"+seller.id);sellerRecord.creditCents=100;ctx.data.set("account:"+seller.id,sellerRecord);
+ const activated=await (await ex.fetch(request("/activate","POST",{},seller.token))).json(),auctionId=activated.auctionId,route="/auctions/"+auctionId;
+ const buyer=await register(ex,"buyer",{title:"Test listing",auctionId});
+ const buyerRecord=ctx.data.get("account:"+buyer.id);buyerRecord.creditCents=100;buyerRecord.name="Austin Myers";ctx.data.set("account:"+buyer.id,buyerRecord);
+ let state=await (await ex.fetch(request(route+"?view=buyer","GET",null,buyer.token))).json();
+ assert.equal(state.canTest,true);assert.equal(state.account.name,"Austin Myers");
+ let r=await ex.fetch(request(route+"/bids","POST",{amount:10000000},buyer.token));assert.equal(r.status,201);
+ state=await (await ex.fetch(request(route+"?view=buyer","GET",null,buyer.token))).json();
+ assert.equal(state.auction.bids.length,1);assert.equal(state.auction.bids[0].label,"Austin Myers");
+ r=await ex.fetch(request(route+"/bids","POST",{amount:10000001,testActor:"test-buyer-a"},buyer.token));assert.equal(r.status,201);
+ state=await (await ex.fetch(request(route+"?view=buyer&actor=test-buyer-a","GET",null,buyer.token))).json();
+ assert.equal(state.canTest,true);assert.equal(state.account.name,"Test Buyer A");
+ state=await (await ex.fetch(request(route+"?view=seller&actor=test-seller","GET",null,buyer.token))).json();
+ assert.equal(state.isSeller,true);assert.equal(state.account.id,seller.id);
+ r=await ex.fetch(request(route+"/test/finish","POST",{},buyer.token));assert.equal(r.status,200);
+ state=await (await ex.fetch(request(route+"?view=buyer","GET",null,buyer.token))).json();
+ assert.equal(state.auction.status,"closed");
+});
